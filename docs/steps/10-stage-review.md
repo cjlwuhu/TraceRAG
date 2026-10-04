@@ -76,7 +76,7 @@
 
 只分发代码、测试、前端源码和 lockfile、schema、教学 examples、阶段记录、安全配置、许可证和引用，共 **214 个文件，约 6.1 MB**。精确索引路径与允许源码快照一致，未含排除路径或大文件；实际 `git show :path` 内容扫描没有非测试凭证形态。排除原始数据、旧/新运行输出、长期知识库、依赖目录、模型/缓存、个人设置、`.env*`、私有来源记录和大文件。浏览器截图和真实工单在本地输出目录查看。
 
-GitHub 仓库：<https://github.com/cjlwuhu/TraceRAG>。用户已授权创建与上传，完成本人设备登录；CLI 实际读取 `isPrivate=true`，默认分支为 `main`。初始源码提交 `978d9c43fea721c2630fbd1e3db81e7726ea43c8` 已成功推送，GitHub commits API 的 `main` SHA 与本地 HEAD 一致，工作树干净。该记录和设计清单的最终回填作为后续文档提交上传，完成后再次读取远端 SHA 并与本地核对。
+GitHub 仓库：<https://github.com/cjlwuhu/TraceRAG>。用户已授权创建与上传，完成本人设备登录；CLI 实际读取 `isPrivate=true`，默认分支为 `main`。初始源码提交 `978d9c43fea721c2630fbd1e3db81e7726ea43c8` 已成功推送，阶段记录和设计清单的后续文档提交也已上传。再次读取 GitHub commits API 的 `main` SHA，确认与本地 HEAD 一致、工作树干净；完整最终 SHA 见本机交付回执。
 
 推送使用单次 GitHub CLI 凭证 helper，不把令牌写入命令、源码或日志，也没有配置原仓库的远端或全局 Git helper。最终结果回执保存于原目录 `outputs/stage10-release-receipt.json`；它属于本机产物，不进入源码仓库。
 
