@@ -1,0 +1,12 @@
+sources:
+  doc: false
+  case: false
+  metric: true
+  log: false
+  trace: false
+  topology: false
+  image: false
+pack:
+  top_k: 20
+  max_context_chars: 40000
+save_intermediates: true

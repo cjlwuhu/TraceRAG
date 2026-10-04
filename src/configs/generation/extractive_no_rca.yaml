@@ -1,0 +1,3 @@
+enabled: true
+mode: extractive
+include_rca_candidates: false

@@ -1,0 +1,93 @@
+# Windows retrieval-only configuration for the versioned operations corpus.
+# Run from D:\Project\EasyRAG\src.
+
+rerank_fusion_type: 0
+ans_refine_type: 0
+
+re_only: true
+retrieval_type: 2
+f_topk: 20
+f_topk_1: 20
+f_topk_2: 10
+f_topk_3: 3
+
+reindex: false
+embedding_name: Alibaba-NLP/gte-Qwen2-7B-instruct
+vector_size: 3584
+cache_path: cache
+collection_name: easyrag-operations-v1
+
+bm25_type: 0
+
+r_topk: 6
+r_topk_1: 6
+reranker_name: ../models/bge-reranker-v2-minicpm-layerwise
+use_reranker: 0
+r_embed_bs: 8
+r_use_efficient: 0
+
+llm_keys: []
+llm_name: glm-4
+llm_embed_type: 2
+
+f_embed_type_1: 1
+f_embed_type_2: 2
+r_embed_type: 1
+
+split_type: 0
+chunk_size: 256
+chunk_overlap: 32
+
+data_path: ../examples/operations_knowledge
+stopwords_path: ""
+hfmodel_cache_folder: ../../../../hf_cache/hub
+qdrant_url: http://localhost:6333
+
+# Typed evidence retrieval and reproducible intermediate outputs.
+evidence_top_k: 3
+save_retrieval_intermediates: true
+retrieval_intermediate_dir: ../outputs/retrieval
+
+# New Incident -> EvidencePack experiment endpoint. Per-request overrides are isolated.
+operations_output_dir: ../outputs/operations
+# Server-only: HTTP experiment overrides cannot supply hosts, paths or credentials.
+# A CLI --cloud opt-in overrides enabled for that process only; ordinary runs stay offline.
+cloud_services:
+  enabled: false
+  api_host: https://dashscope.aliyuncs.com
+  key_file: null # DASHSCOPE_API_KEY or EASYRAG_DASHSCOPE_KEY_FILE
+  proxy: null # Explicit alternative: http://127.0.0.1:7897
+  timeout_seconds: 60
+  cache_path: ../outputs/embedding_cache.sqlite
+operations:
+  sources: {doc: true, case: true, metric: true}
+  query: {use_incident: true, use_rca: true, rca_top_k: 3}
+  retrieval: {mode: bm25, path_enabled: true, per_route_top_k: 5}
+  embedding: {enabled: false, model: text-embedding-v4, dimension: 1024}
+  reranker: {enabled: false, model: gte-rerank-v2, candidate_top_k: 20}
+  fusion:
+    enabled: true
+    rrf_k: 60
+    weights: {doc: 1.0, case: 1.0, metric: 1.0}
+  pack: {top_k: 6, max_context_chars: 12000}
+  save_intermediates: true
+
+work_order_output_dir: ../outputs/work_orders
+work_order:
+  enabled: true
+  mode: extractive # cloud requires cloud_services.enabled or CLI --cloud
+  model: qwen-plus
+  temperature: 0.0
+  max_output_tokens: 4096
+  max_input_chars: 40000
+  include_rca_candidates: true
+  max_candidates: 3
+  max_steps: 5
+  repair_attempts: 0 # Explicit cloud profile permits one audited correction, not network retries.
+  save_intermediates: true
+
+compress_method: ""
+compress_rate: 0.5
+
+hyde: false
+hyde_merging: false

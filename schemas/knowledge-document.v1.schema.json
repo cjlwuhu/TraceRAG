@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://easyrag.local/schemas/knowledge-document.v1.schema.json",
+  "title": "EasyRAG KnowledgeDocument v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "knowledge_id",
+    "knowledge_type",
+    "title",
+    "content",
+    "source",
+    "raw_ref",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "knowledge_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]{2,127}$"
+    },
+    "knowledge_type": {
+      "enum": [
+        "runbook",
+        "case",
+        "metric",
+        "log",
+        "trace",
+        "topology",
+        "image"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "raw_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "knowledge_type": {
+            "enum": [
+              "case",
+              "metric",
+              "log",
+              "trace",
+              "topology",
+              "image"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "metadata": {
+            "required": [
+              "source_incident_id",
+              "system"
+            ],
+            "properties": {
+              "source_incident_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "system": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "knowledge_type": {
+            "enum": [
+              "metric",
+              "log",
+              "trace",
+              "topology",
+              "image"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "metadata": {
+            "required": [
+              "window_start_utc",
+              "window_end_utc"
+            ],
+            "properties": {
+              "window_start_utc": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "window_end_utc": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "knowledge_type": {
+            "enum": [
+              "log",
+              "trace",
+              "topology",
+              "image"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "content": {
+            "maxLength": 8000
+          },
+          "metadata": {
+            "required": [
+              "asset_sha256",
+              "derivation"
+            ],
+            "properties": {
+              "asset_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "derivation": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "knowledge_type": {
+            "const": "case"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "metadata": {
+            "required": [
+              "human_verified",
+              "verified_by",
+              "verified_at"
+            ],
+            "properties": {
+              "human_verified": {
+                "const": true
+              },
+              "verified_by": {
+                "type": "string",
+                "minLength": 1
+              },
+              "verified_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

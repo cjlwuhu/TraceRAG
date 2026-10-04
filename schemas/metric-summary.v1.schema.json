@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://easyrag.local/schemas/metric-summary.v1.schema.json",
+  "title": "EasyRAG MetricSummary v1",
+  "description": "A retrieval-ready observation derived from a bounded telemetry window.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "summary_id",
+    "source_incident_id",
+    "system",
+    "service",
+    "metric",
+    "window_start_utc",
+    "window_end_utc",
+    "direction",
+    "summary",
+    "statistics",
+    "source",
+    "raw_ref"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "summary_id": { "type": "string", "pattern": "^[a-z][a-z0-9._-]{2,127}$" },
+    "source_incident_id": { "type": "string", "minLength": 1 },
+    "system": { "type": "string", "minLength": 1 },
+    "service": { "type": "string", "minLength": 1 },
+    "metric": { "type": "string", "minLength": 1 },
+    "window_start_utc": { "type": "string", "format": "date-time" },
+    "window_end_utc": { "type": "string", "format": "date-time" },
+    "direction": { "enum": ["increase", "decrease", "flat", "unknown"] },
+    "summary": { "type": "string", "minLength": 1 },
+    "statistics": {
+      "type": "object",
+      "additionalProperties": { "type": "number" }
+    },
+    "source": { "type": "string", "minLength": 1 },
+    "raw_ref": { "type": "string", "minLength": 1 }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "source_url": "https://www.modelscope.cn/datasets/issaccv/aiops2024-challenge-dataset",
+  "upstream_reference": "https://github.com/BUAADreamer/EasyRAG/blob/main/scripts/process.sh",
+  "revision": "854d1d35eb1f3ae5471a2b57f0261e1da8e8f3f4",
+  "license_declaration": "Dataset README declares Apache License 2.0; retained with downloaded source",
+  "system": "zte-aiops2024",
+  "files": {
+    "data.zip": {"sha256": "026d4309b2a768ebb70b59e6f36aa6e4dbe5fb7b52476a5cfed6accf1f5a5f93", "size": 21536201},
+    "director.zedx": {"sha256": "9fd6ac0aaee28bbe6ce2545a9e2b92c4dac0e48cbfeb08c762d685cca97cbc00", "size": 44459682},
+    "emsplus.zedx": {"sha256": "f34be6ea0579a8b9f07d29ec9b0f825b2a412e6ba4f6b473729f352024d13b94", "size": 24120900},
+    "rcp.zedx": {"sha256": "300190ac98980f09166f1d53667e63e4a376bb8a87089c263148c080c346a6b9", "size": 182681817},
+    "umac.zedx": {"sha256": "f2ffc1a26aa74c646af4ba365f94a930b502ba7eb4b788e9e8e0aa9cb646b8e6", "size": 425142390}
+  }
+}

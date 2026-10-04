@@ -1,0 +1,336 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EvidencePackRecord",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "title": "Schema Version",
+      "enum": [
+        "1.0"
+      ],
+      "type": "string"
+    },
+    "pack_id": {
+      "title": "Pack Id",
+      "pattern": "^pack-[a-f0-9]{16}$",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "pattern": "^run-[a-f0-9]{32}$",
+      "type": "string"
+    },
+    "created_at_utc": {
+      "title": "Created At Utc",
+      "type": "string"
+    },
+    "elapsed_seconds": {
+      "title": "Elapsed Seconds",
+      "minimum": 0,
+      "type": "number"
+    },
+    "query_context": {
+      "title": "Query Context",
+      "type": "object"
+    },
+    "experiment": {
+      "title": "Experiment",
+      "type": "object"
+    },
+    "routes": {
+      "title": "Routes",
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/definitions/EvidencePayload"
+        }
+      }
+    },
+    "diagnostics": {
+      "title": "Diagnostics",
+      "type": "object"
+    },
+    "pack": {
+      "$ref": "#/definitions/PackPayload"
+    },
+    "limitations": {
+      "title": "Limitations",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "pack_id",
+    "run_id",
+    "created_at_utc",
+    "elapsed_seconds",
+    "query_context",
+    "experiment",
+    "routes",
+    "diagnostics",
+    "pack",
+    "limitations"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "EvidencePayload": {
+      "title": "EvidencePayload",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "title": "Schema Version",
+          "enum": [
+            "1.0"
+          ],
+          "type": "string"
+        },
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "enum": [
+            "doc",
+            "case",
+            "metric",
+            "log",
+            "trace",
+            "topology",
+            "image"
+          ],
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        },
+        "rank": {
+          "title": "Rank",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "retriever": {
+          "title": "Retriever",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "raw_ref": {
+          "title": "Raw Ref",
+          "type": "string"
+        },
+        "metadata": {
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema_version",
+        "evidence_id",
+        "type",
+        "content",
+        "score",
+        "rank",
+        "retriever",
+        "source",
+        "raw_ref",
+        "metadata"
+      ],
+      "additionalProperties": false
+    },
+    "Contribution": {
+      "title": "Contribution",
+      "type": "object",
+      "properties": {
+        "route": {
+          "title": "Route",
+          "type": "string"
+        },
+        "rank": {
+          "title": "Rank",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "raw_score": {
+          "title": "Raw Score",
+          "type": "number"
+        },
+        "rrf_contribution": {
+          "title": "Rrf Contribution",
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "route",
+        "rank",
+        "raw_score",
+        "rrf_contribution"
+      ],
+      "additionalProperties": false
+    },
+    "PackedEvidence": {
+      "title": "PackedEvidence",
+      "type": "object",
+      "properties": {
+        "evidence": {
+          "$ref": "#/definitions/EvidencePayload"
+        },
+        "pack_rank": {
+          "title": "Pack Rank",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "fusion_score": {
+          "title": "Fusion Score",
+          "type": "number"
+        },
+        "rerank_score": {
+          "title": "Rerank Score",
+          "type": "number"
+        },
+        "contributions": {
+          "title": "Contributions",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Contribution"
+          }
+        }
+      },
+      "required": [
+        "evidence",
+        "pack_rank",
+        "contributions"
+      ],
+      "additionalProperties": false
+    },
+    "DroppedEvidence": {
+      "title": "DroppedEvidence",
+      "type": "object",
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "enum": [
+            "top_k",
+            "context_budget",
+            "rerank_candidate_budget"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "RerankCandidate": {
+      "title": "RerankCandidate",
+      "type": "object",
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "score"
+      ],
+      "additionalProperties": false
+    },
+    "RerankTrace": {
+      "title": "RerankTrace",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "default": false,
+          "type": "boolean"
+        },
+        "model": {
+          "title": "Model",
+          "enum": [
+            "gte-rerank-v2"
+          ],
+          "type": "string"
+        },
+        "candidates": {
+          "title": "Candidates",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RerankCandidate"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "PackPayload": {
+      "title": "PackPayload",
+      "type": "object",
+      "properties": {
+        "strategy": {
+          "title": "Strategy",
+          "enum": [
+            "weighted_rrf",
+            "round_robin"
+          ],
+          "type": "string"
+        },
+        "items": {
+          "title": "Items",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PackedEvidence"
+          }
+        },
+        "context": {
+          "title": "Context",
+          "type": "string"
+        },
+        "context_chars": {
+          "title": "Context Chars",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dropped": {
+          "title": "Dropped",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DroppedEvidence"
+          }
+        },
+        "reranking": {
+          "$ref": "#/definitions/RerankTrace"
+        }
+      },
+      "required": [
+        "strategy",
+        "items",
+        "context",
+        "context_chars",
+        "dropped"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

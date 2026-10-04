@@ -1,0 +1,2 @@
+# Deterministic round-robin merging with the same budget and source pool.
+fusion: {enabled: false}

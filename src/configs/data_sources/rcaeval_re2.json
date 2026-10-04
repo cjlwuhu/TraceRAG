@@ -1,0 +1,22 @@
+{
+  "source_url": "https://huggingface.co/datasets/phamquiluan/RCAEval",
+  "revision": "afeacb11bcc94dadfd1c8f483ee4377b2b8b614e",
+  "purpose": "one integration example, not held-out accuracy evaluation",
+  "files": {
+    "logs.parquet": {
+      "source_path": "re2ob_checkoutservice_cpu_1/logs.parquet",
+      "size": 336876,
+      "sha256": "e1a25e50c8b0beae4b2886df54d86d2f28877d0b611fed98411e9c0b0c77dad3"
+    },
+    "metrics.parquet": {
+      "source_path": "re2ob_checkoutservice_cpu_1/metrics.parquet",
+      "size": 157212,
+      "sha256": "f46b3d354b234e37c424f54a005329b61aac83d15dcdd46b5642e55f390ab25a"
+    },
+    "traces.parquet": {
+      "source_path": "re2ob_checkoutservice_cpu_1/traces.parquet",
+      "size": 10146857,
+      "sha256": "56ca8f6dbeb76fab2d33faeca54bce8f40e9c5491ebd76404ebb2dfd83409367"
+    }
+  }
+}

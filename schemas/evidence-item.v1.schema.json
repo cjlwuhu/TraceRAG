@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://easyrag.local/schemas/evidence-item.v1.schema.json",
+  "title": "EasyRAG EvidenceItem v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_id",
+    "type",
+    "content",
+    "score",
+    "rank",
+    "retriever",
+    "source",
+    "raw_ref",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "evidence_id": {
+      "type": "string",
+      "pattern": "^ev-(doc|case|metric|log|trace|topology|image)-[a-f0-9]{16}$"
+    },
+    "type": {
+      "enum": [
+        "doc",
+        "case",
+        "metric",
+        "log",
+        "trace",
+        "topology",
+        "image"
+      ]
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1
+    },
+    "score": {
+      "type": "number"
+    },
+    "rank": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "retriever": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "raw_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metadata": {
+      "type": "object"
+    }
+  }
+}

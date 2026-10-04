@@ -1,0 +1,208 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkOrderDraft",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "$ref": "#/definitions/CitedStatement"
+    },
+    "root_cause_candidates": {
+      "title": "Root Cause Candidates",
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Hypothesis"
+      }
+    },
+    "impact": {
+      "title": "Impact",
+      "type": "null"
+    },
+    "verification_steps": {
+      "title": "Verification Steps",
+      "minItems": 1,
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/CitedStatement"
+      }
+    },
+    "proposed_actions": {
+      "title": "Proposed Actions",
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ProposedAction"
+      }
+    },
+    "missing_information": {
+      "title": "Missing Information",
+      "minItems": 1,
+      "maxItems": 12,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1600
+      }
+    },
+    "limitations": {
+      "title": "Limitations",
+      "minItems": 1,
+      "maxItems": 12,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1600
+      }
+    }
+  },
+  "required": [
+    "summary",
+    "root_cause_candidates",
+    "verification_steps",
+    "proposed_actions",
+    "missing_information",
+    "limitations"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "Citation": {
+      "title": "Citation",
+      "type": "object",
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "pattern": "^ev-(doc|case|metric|log|trace|topology|image)-[a-f0-9]{16}$",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "minLength": 8,
+          "maxLength": 1200,
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "quote"
+      ],
+      "additionalProperties": false
+    },
+    "CitedStatement": {
+      "title": "CitedStatement",
+      "type": "object",
+      "properties": {
+        "text": {
+          "title": "Text",
+          "minLength": 1,
+          "maxLength": 1600,
+          "type": "string"
+        },
+        "citations": {
+          "title": "Citations",
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Citation"
+          }
+        }
+      },
+      "required": [
+        "text",
+        "citations"
+      ],
+      "additionalProperties": false
+    },
+    "Hypothesis": {
+      "title": "Hypothesis",
+      "type": "object",
+      "properties": {
+        "statement": {
+          "$ref": "#/definitions/CitedStatement"
+        },
+        "verification": {
+          "title": "Verification",
+          "minLength": 1,
+          "maxLength": 1600,
+          "type": "string"
+        }
+      },
+      "required": [
+        "statement",
+        "verification"
+      ],
+      "additionalProperties": false
+    },
+    "ProposedAction": {
+      "title": "ProposedAction",
+      "type": "object",
+      "properties": {
+        "text": {
+          "title": "Text",
+          "minLength": 1,
+          "maxLength": 1600,
+          "type": "string"
+        },
+        "citations": {
+          "title": "Citations",
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Citation"
+          }
+        },
+        "preconditions": {
+          "title": "Preconditions",
+          "minLength": 1,
+          "maxLength": 1600,
+          "type": "string"
+        },
+        "risks": {
+          "title": "Risks",
+          "minItems": 1,
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1600
+          }
+        },
+        "rollback": {
+          "title": "Rollback",
+          "minLength": 1,
+          "maxLength": 1600,
+          "type": "string"
+        },
+        "requires_approval": {
+          "title": "Requires Approval",
+          "default": true,
+          "enum": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "execution_status": {
+          "title": "Execution Status",
+          "default": "not_executed",
+          "enum": [
+            "not_executed"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "citations",
+        "preconditions",
+        "risks",
+        "rollback"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,3 @@
+retrieval: {mode: bm25}
+embedding: {enabled: false}
+reranker: {enabled: true}

@@ -1,0 +1,20 @@
+{
+  "name": "tracerag-operations-console",
+  "version": "0.10.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "test": "playwright test",
+    "format": "prettier --write src tests *.js *.json index.html"
+  },
+  "dependencies": {
+    "vue": "3.5.43"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.9",
+    "vite": "8.3.0",
+    "@playwright/test": "1.63.0",
+    "prettier": "3.9.8"
+  }
+}

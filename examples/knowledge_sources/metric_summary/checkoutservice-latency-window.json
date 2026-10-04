@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "summary_id": "metric-demo-checkout-latency-001",
+  "source_incident_id": "inc-demo-metric-window-001",
+  "system": "online-boutique",
+  "service": "checkoutservice",
+  "metric": "checkoutservice_latency",
+  "window_start_utc": "2023-08-20T22:08:29Z",
+  "window_end_utc": "2023-08-20T22:09:29Z",
+  "direction": "increase",
+  "summary": "测试窗口中 checkoutservice_latency 的均值由 0.11 上升至约 1.5267；这是观测变化，不代表已确认根因。",
+  "statistics": {
+    "normal_mean": 0.11,
+    "abnormal_mean": 1.5266666666666666,
+    "absolute_mean_shift": 1.4166666666666665,
+    "relative_change_percent": 1287.8787878787878
+  },
+  "source": "RCA unittest telemetry fixture",
+  "raw_ref": "fixture:rca/re1-ob_checkoutservice_window"
+}

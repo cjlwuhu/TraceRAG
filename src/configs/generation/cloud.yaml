@@ -1,0 +1,3 @@
+enabled: true
+mode: cloud
+repair_attempts: 1

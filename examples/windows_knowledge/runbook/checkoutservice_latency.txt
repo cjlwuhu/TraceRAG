@@ -1,0 +1,7 @@
+CheckoutService 延迟故障处理手册
+
+当 checkoutservice 的请求延迟在短时间内明显上升时，先检查其上游调用量、下游 paymentservice 和 currencyservice 的响应时间，以及数据库或外部接口超时。
+
+验证步骤：确认异常时间窗口；比较 checkoutservice、paymentservice、currencyservice 的延迟与错误率；检查同一时间段的 timeout、connection refused 和 resource exhausted 日志；必要时回滚最近变更。
+
+处置时应把 RCA 输出视为根因候选。只有日志、指标、拓扑或人工复核形成一致证据后，才能确认根因并写入历史工单。

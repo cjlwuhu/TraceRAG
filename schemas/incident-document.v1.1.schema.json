@@ -1,0 +1,252 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IncidentInput",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "title": "Schema Version",
+      "enum": [
+        "1.0",
+        "1.1"
+      ],
+      "type": "string"
+    },
+    "incident_id": {
+      "title": "Incident Id",
+      "pattern": "^inc-[0-9]{10}-[a-f0-9]{12}$",
+      "type": "string"
+    },
+    "system": {
+      "title": "System",
+      "minLength": 1,
+      "maxLength": 500,
+      "type": "string"
+    },
+    "lifecycle": {
+      "title": "Lifecycle",
+      "enum": [
+        "active",
+        "resolved"
+      ],
+      "type": "string"
+    },
+    "detection": {
+      "$ref": "#/definitions/DetectionInput"
+    },
+    "observations": {
+      "$ref": "#/definitions/ObservationInput"
+    },
+    "rca_runs": {
+      "title": "Rca Runs",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/RunInput"
+      }
+    },
+    "retrieval_text": {
+      "title": "Retrieval Text",
+      "type": "string"
+    },
+    "source_refs": {
+      "title": "Source Refs",
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/SourceInput"
+      }
+    },
+    "limitations": {
+      "title": "Limitations",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "incident_id",
+    "system",
+    "lifecycle",
+    "detection",
+    "observations",
+    "rca_runs",
+    "retrieval_text",
+    "source_refs",
+    "limitations"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "DetectionInput": {
+      "title": "DetectionInput",
+      "type": "object",
+      "properties": {
+        "timestamp_unix": {
+          "title": "Timestamp Unix",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "minLength": 1,
+          "maxLength": 500,
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "enum": [
+            "benchmark_annotation",
+            "anomaly_detector",
+            "operator"
+          ],
+          "type": "string"
+        },
+        "window_minutes": {
+          "title": "Window Minutes",
+          "minimum": 1,
+          "maximum": 10080,
+          "type": "integer"
+        },
+        "evidence_cutoff_utc": {
+          "title": "Evidence Cutoff Utc",
+          "minLength": 1,
+          "maxLength": 500,
+          "type": "string"
+        }
+      },
+      "required": [
+        "timestamp_unix",
+        "timestamp_utc",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "ObservationInput": {
+      "title": "ObservationInput",
+      "type": "object",
+      "properties": {
+        "suspected_services": {
+          "title": "Suspected Services",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "candidate_metrics": {
+          "title": "Candidate Metrics",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      },
+      "required": [
+        "suspected_services",
+        "candidate_metrics"
+      ],
+      "additionalProperties": false
+    },
+    "CandidateInput": {
+      "title": "CandidateInput",
+      "type": "object",
+      "properties": {
+        "rank": {
+          "title": "Rank",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "metric": {
+          "title": "Metric",
+          "minLength": 1,
+          "maxLength": 500,
+          "type": "string"
+        },
+        "service": {
+          "title": "Service",
+          "minLength": 1,
+          "maxLength": 500,
+          "type": "string"
+        },
+        "signal": {
+          "title": "Signal",
+          "minLength": 1,
+          "maxLength": 500,
+          "type": "string"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rank",
+        "metric"
+      ],
+      "additionalProperties": false
+    },
+    "RunInput": {
+      "title": "RunInput",
+      "type": "object",
+      "properties": {
+        "method": {
+          "title": "Method",
+          "minLength": 1,
+          "maxLength": 500,
+          "type": "string"
+        },
+        "candidates": {
+          "title": "Candidates",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CandidateInput"
+          }
+        },
+        "runtime_seconds": {
+          "title": "Runtime Seconds",
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "candidates"
+      ],
+      "additionalProperties": false
+    },
+    "SourceInput": {
+      "title": "SourceInput",
+      "type": "object",
+      "properties": {
+        "source_type": {
+          "title": "Source Type",
+          "enum": [
+            "rca_result",
+            "telemetry_bundle"
+          ],
+          "type": "string"
+        },
+        "method": {
+          "title": "Method",
+          "minLength": 1,
+          "maxLength": 500,
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_type",
+        "method",
+        "sha256"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "case_id": "case-demo-payment-timeout-001",
+  "source_incident_id": "inc-demo-previous-001",
+  "system": "online-boutique",
+  "title": "Checkout 请求因 Payment 连接池耗尽而超时",
+  "symptoms": [
+    "checkoutservice 请求时延持续升高",
+    "paymentservice 日志出现连接获取超时"
+  ],
+  "rca_candidates": [
+    "checkoutservice_latency",
+    "paymentservice_cpu"
+  ],
+  "verified_root_cause": "paymentservice 的数据库连接池耗尽，导致结算请求排队超时",
+  "actions": [
+    "临时扩容 paymentservice 实例并恢复请求处理",
+    "调整连接池上限并增加连接池等待时间监控"
+  ],
+  "evidence_refs": [
+    "log-demo-payment-pool-timeout",
+    "metric-demo-checkout-latency"
+  ],
+  "human_verified": true,
+  "verified_by": "demo-operator",
+  "verified_at": "2023-08-19T10:30:00Z",
+  "source": "synthetic-learning-fixture",
+  "raw_ref": "fixture:historical/payment-timeout-verified"
+}

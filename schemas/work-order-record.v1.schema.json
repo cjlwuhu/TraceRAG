@@ -1,0 +1,487 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkOrderRecord",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "title": "Schema Version",
+      "default": "1.0",
+      "enum": [
+        "1.0"
+      ],
+      "type": "string"
+    },
+    "generation_run_id": {
+      "title": "Generation Run Id",
+      "pattern": "^gen-[a-f0-9]{32}$",
+      "type": "string"
+    },
+    "work_order_id": {
+      "title": "Work Order Id",
+      "pattern": "^wo-[a-f0-9]{16}$",
+      "type": "string"
+    },
+    "status": {
+      "title": "Status",
+      "enum": [
+        "draft",
+        "generation_disabled",
+        "insufficient_evidence"
+      ],
+      "type": "string"
+    },
+    "created_at_utc": {
+      "title": "Created At Utc",
+      "type": "string"
+    },
+    "elapsed_seconds": {
+      "title": "Elapsed Seconds",
+      "minimum": 0,
+      "type": "number"
+    },
+    "incident_id": {
+      "title": "Incident Id",
+      "type": "string"
+    },
+    "system": {
+      "title": "System",
+      "type": "string"
+    },
+    "source_pack_id": {
+      "title": "Source Pack Id",
+      "type": "string"
+    },
+    "source_retrieval_run_id": {
+      "title": "Source Retrieval Run Id",
+      "type": "string"
+    },
+    "config": {
+      "$ref": "#/definitions/GenerationConfig"
+    },
+    "review_status": {
+      "title": "Review Status",
+      "default": "pending_human_review",
+      "enum": [
+        "pending_human_review"
+      ],
+      "type": "string"
+    },
+    "root_cause_status": {
+      "title": "Root Cause Status",
+      "default": "unconfirmed",
+      "enum": [
+        "unconfirmed"
+      ],
+      "type": "string"
+    },
+    "actions_executed": {
+      "title": "Actions Executed",
+      "default": false,
+      "enum": [
+        false
+      ],
+      "type": "boolean"
+    },
+    "semantic_support": {
+      "title": "Semantic Support",
+      "default": "not_automatically_verified",
+      "enum": [
+        "not_automatically_verified"
+      ],
+      "type": "string"
+    },
+    "draft": {
+      "$ref": "#/definitions/WorkOrderDraft"
+    },
+    "evidence": {
+      "title": "Evidence",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/EvidencePayload"
+      }
+    },
+    "provenance": {
+      "title": "Provenance",
+      "type": "object"
+    },
+    "limitations": {
+      "title": "Limitations",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "generation_run_id",
+    "status",
+    "created_at_utc",
+    "elapsed_seconds",
+    "source_pack_id",
+    "source_retrieval_run_id",
+    "config",
+    "evidence",
+    "provenance",
+    "limitations"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "GenerationConfig": {
+      "title": "GenerationConfig",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "default": true,
+          "type": "boolean"
+        },
+        "mode": {
+          "title": "Mode",
+          "default": "extractive",
+          "enum": [
+            "extractive",
+            "cloud"
+          ],
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "default": "qwen-plus",
+          "maxLength": 80,
+          "pattern": "^(qwen-plus|qwen-flash|glm-[a-zA-Z0-9.-]+)$",
+          "type": "string"
+        },
+        "temperature": {
+          "title": "Temperature",
+          "default": 0.0,
+          "minimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        "max_output_tokens": {
+          "title": "Max Output Tokens",
+          "default": 4096,
+          "minimum": 512,
+          "maximum": 8192,
+          "type": "integer"
+        },
+        "max_input_chars": {
+          "title": "Max Input Chars",
+          "default": 40000,
+          "minimum": 1000,
+          "maximum": 100000,
+          "type": "integer"
+        },
+        "include_rca_candidates": {
+          "title": "Include Rca Candidates",
+          "default": true,
+          "type": "boolean"
+        },
+        "max_candidates": {
+          "title": "Max Candidates",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 8,
+          "type": "integer"
+        },
+        "max_steps": {
+          "title": "Max Steps",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 8,
+          "type": "integer"
+        },
+        "repair_attempts": {
+          "title": "Repair Attempts",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 1,
+          "type": "integer"
+        },
+        "save_intermediates": {
+          "title": "Save Intermediates",
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Citation": {
+      "title": "Citation",
+      "type": "object",
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "pattern": "^ev-(doc|case|metric|log|trace|topology|image)-[a-f0-9]{16}$",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "minLength": 8,
+          "maxLength": 1200,
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "quote"
+      ],
+      "additionalProperties": false
+    },
+    "CitedStatement": {
+      "title": "CitedStatement",
+      "type": "object",
+      "properties": {
+        "text": {
+          "title": "Text",
+          "minLength": 1,
+          "maxLength": 1600,
+          "type": "string"
+        },
+        "citations": {
+          "title": "Citations",
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Citation"
+          }
+        }
+      },
+      "required": [
+        "text",
+        "citations"
+      ],
+      "additionalProperties": false
+    },
+    "Hypothesis": {
+      "title": "Hypothesis",
+      "type": "object",
+      "properties": {
+        "statement": {
+          "$ref": "#/definitions/CitedStatement"
+        },
+        "verification": {
+          "title": "Verification",
+          "minLength": 1,
+          "maxLength": 1600,
+          "type": "string"
+        }
+      },
+      "required": [
+        "statement",
+        "verification"
+      ],
+      "additionalProperties": false
+    },
+    "ProposedAction": {
+      "title": "ProposedAction",
+      "type": "object",
+      "properties": {
+        "text": {
+          "title": "Text",
+          "minLength": 1,
+          "maxLength": 1600,
+          "type": "string"
+        },
+        "citations": {
+          "title": "Citations",
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Citation"
+          }
+        },
+        "preconditions": {
+          "title": "Preconditions",
+          "minLength": 1,
+          "maxLength": 1600,
+          "type": "string"
+        },
+        "risks": {
+          "title": "Risks",
+          "minItems": 1,
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1600
+          }
+        },
+        "rollback": {
+          "title": "Rollback",
+          "minLength": 1,
+          "maxLength": 1600,
+          "type": "string"
+        },
+        "requires_approval": {
+          "title": "Requires Approval",
+          "default": true,
+          "enum": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "execution_status": {
+          "title": "Execution Status",
+          "default": "not_executed",
+          "enum": [
+            "not_executed"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "citations",
+        "preconditions",
+        "risks",
+        "rollback"
+      ],
+      "additionalProperties": false
+    },
+    "WorkOrderDraft": {
+      "title": "WorkOrderDraft",
+      "type": "object",
+      "properties": {
+        "summary": {
+          "$ref": "#/definitions/CitedStatement"
+        },
+        "root_cause_candidates": {
+          "title": "Root Cause Candidates",
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Hypothesis"
+          }
+        },
+        "impact": {
+          "title": "Impact",
+          "type": "null"
+        },
+        "verification_steps": {
+          "title": "Verification Steps",
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CitedStatement"
+          }
+        },
+        "proposed_actions": {
+          "title": "Proposed Actions",
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ProposedAction"
+          }
+        },
+        "missing_information": {
+          "title": "Missing Information",
+          "minItems": 1,
+          "maxItems": 12,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1600
+          }
+        },
+        "limitations": {
+          "title": "Limitations",
+          "minItems": 1,
+          "maxItems": 12,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1600
+          }
+        }
+      },
+      "required": [
+        "summary",
+        "root_cause_candidates",
+        "verification_steps",
+        "proposed_actions",
+        "missing_information",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "EvidencePayload": {
+      "title": "EvidencePayload",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "title": "Schema Version",
+          "enum": [
+            "1.0"
+          ],
+          "type": "string"
+        },
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "enum": [
+            "doc",
+            "case",
+            "metric",
+            "log",
+            "trace",
+            "topology",
+            "image"
+          ],
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        },
+        "rank": {
+          "title": "Rank",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "retriever": {
+          "title": "Retriever",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "raw_ref": {
+          "title": "Raw Ref",
+          "type": "string"
+        },
+        "metadata": {
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema_version",
+        "evidence_id",
+        "type",
+        "content",
+        "score",
+        "rank",
+        "retriever",
+        "source",
+        "raw_ref",
+        "metadata"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

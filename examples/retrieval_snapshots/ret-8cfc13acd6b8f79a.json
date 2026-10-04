@@ -1,0 +1,81 @@
+{
+  "created_at_utc": "2026-08-31T10:47:05.258877Z",
+  "current_incident_id": "inc-1692602972-868acb166ba6",
+  "query": "online-boutique checkoutservice 延迟 checkoutservice_latency paymentservice 超时如何验证和处置",
+  "results": {
+    "case": [
+      {
+        "content": "Checkout 请求因 Payment 连接池耗尽而超时\n\n系统：online-boutique\n故障症状：checkoutservice 请求时延持续升高；paymentservice 日志出现连接获取超时\n当时的 RCA 候选：checkoutservice_latency；paymentservice_cpu\n已确认根因：paymentservice 的数据库连接池耗尽，导致结算请求排队超时\n处置措施：临时扩容 paymentservice 实例并恢复请求处理；调整连接池上限并增加连接池等待时间监控\n确认依据：log-demo-payment-pool-timeout；metric-demo-checkout-latency",
+        "evidence_id": "ev-case-63095f1d8ce07aa7",
+        "metadata": {
+          "document_title": "Checkout 请求因 Payment 连接池耗尽而超时",
+          "file_path": "case/case-demo-payment-timeout-001.txt",
+          "human_verified": true,
+          "know_path": "operations/case/Checkout 请求因 Payment 连接池耗尽而超时",
+          "knowledge_id": "case-demo-payment-timeout-001",
+          "knowledge_type": "case",
+          "source_incident_id": "inc-demo-previous-001",
+          "system": "online-boutique",
+          "verified_at": "2023-08-19T10:30:00Z",
+          "verified_by": "demo-operator"
+        },
+        "rank": 1,
+        "raw_ref": "fixture:historical/payment-timeout-verified",
+        "retriever": "bm25",
+        "schema_version": "1.0",
+        "score": -3.97036078144939,
+        "source": "synthetic-learning-fixture",
+        "type": "case"
+      }
+    ],
+    "doc": [
+      {
+        "content": "CheckoutService 延迟故障处理手册\n\n当 checkoutservice 的请求延迟在短时间内明显上升时，先检查其上游调用量、下游 paymentservice 和 currencyservice 的响应时间，以及数据库或外部接口超时。\n\n验证步骤：确认异常时间窗口；比较 checkoutservice、paymentservice、currencyservice 的延迟与错误率；检查同一时间段的 timeout、connection refused 和 resource exhausted 日志；必要时回滚最近变更。\n\n处置时应把 RCA 输出视为根因候选。只有日志、指标、拓扑或人工复核形成一致证据后，才能确认根因并写入历史工单。",
+        "evidence_id": "ev-doc-b8c3aee4d118360d",
+        "metadata": {
+          "document_title": "CheckoutService 延迟故障处理手册",
+          "file_path": "runbook/runbook-a453fd08cc6062ea.txt",
+          "know_path": "operations/runbook/CheckoutService 延迟故障处理手册",
+          "knowledge_id": "runbook-a453fd08cc6062ea",
+          "knowledge_type": "runbook"
+        },
+        "rank": 1,
+        "raw_ref": "file:examples/windows_knowledge/runbook/checkoutservice_latency.txt",
+        "retriever": "bm25",
+        "schema_version": "1.0",
+        "score": -3.1067899462010473,
+        "source": "checkoutservice_latency.txt",
+        "type": "doc"
+      }
+    ],
+    "metric": [
+      {
+        "content": "checkoutservice checkoutservice_latency 时序摘要\n\n时序指标摘要：checkoutservice_latency\n系统与服务：online-boutique / checkoutservice\n观测窗口：2023-08-20T22:08:29Z 至 2023-08-20T22:09:29Z\n变化方向：increase\n观测结论：测试窗口中 checkoutservice_latency 的均值由 0.11 上升至约 1.5267；这是观测变化，不代表已确认根因。\n统计量：abnormal_mean=1.52667；absolute_mean_shift=1.41667；normal_mean=0.11；relative_change_percent=1287.88",
+        "evidence_id": "ev-metric-80efaced468c6ccd",
+        "metadata": {
+          "direction": "increase",
+          "document_title": "checkoutservice checkoutservice_latency 时序摘要",
+          "file_path": "metric/metric-demo-checkout-latency-001.txt",
+          "know_path": "operations/metric/checkoutservice checkoutservice_latency 时序摘要",
+          "knowledge_id": "metric-demo-checkout-latency-001",
+          "knowledge_type": "metric",
+          "metric": "checkoutservice_latency",
+          "service": "checkoutservice",
+          "source_incident_id": "inc-demo-metric-window-001",
+          "system": "online-boutique",
+          "window_end_utc": "2023-08-20T22:09:29Z",
+          "window_start_utc": "2023-08-20T22:08:29Z"
+        },
+        "rank": 1,
+        "raw_ref": "fixture:rca/re1-ob_checkoutservice_window",
+        "retriever": "bm25",
+        "schema_version": "1.0",
+        "score": -3.304850662213195,
+        "source": "RCA unittest telemetry fixture",
+        "type": "metric"
+      }
+    ]
+  },
+  "retrieval_id": "ret-8cfc13acd6b8f79a",
+  "schema_version": "1.0"
+}

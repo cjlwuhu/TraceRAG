@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://easyrag.local/schemas/retrieval-snapshot.v1.schema.json",
+  "title": "EasyRAG RetrievalSnapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "retrieval_id",
+    "created_at_utc",
+    "query",
+    "results"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "retrieval_id": { "type": "string", "pattern": "^ret-[a-f0-9]{16}$" },
+    "created_at_utc": { "type": "string", "format": "date-time" },
+    "query": { "type": "string", "minLength": 1 },
+    "current_incident_id": { "type": "string", "minLength": 1 },
+    "results": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["doc", "case", "metric"],
+      "properties": {
+        "doc": { "$ref": "#/$defs/evidenceList" },
+        "case": { "$ref": "#/$defs/evidenceList" },
+        "metric": { "$ref": "#/$defs/evidenceList" }
+      }
+    }
+  },
+  "$defs": {
+    "evidenceList": {
+      "type": "array",
+      "items": { "$ref": "evidence-item.v1.schema.json" }
+    }
+  }
+}

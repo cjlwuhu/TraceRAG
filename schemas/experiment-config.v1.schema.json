@@ -1,0 +1,282 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ExperimentConfig",
+  "type": "object",
+  "properties": {
+    "sources": {
+      "$ref": "#/definitions/Sources"
+    },
+    "query": {
+      "$ref": "#/definitions/QueryOptions"
+    },
+    "retrieval": {
+      "$ref": "#/definitions/RetrievalOptions"
+    },
+    "embedding": {
+      "$ref": "#/definitions/EmbeddingOptions"
+    },
+    "reranker": {
+      "$ref": "#/definitions/RerankerOptions"
+    },
+    "fusion": {
+      "$ref": "#/definitions/FusionOptions"
+    },
+    "pack": {
+      "$ref": "#/definitions/PackOptions"
+    },
+    "save_intermediates": {
+      "title": "Save Intermediates",
+      "default": false,
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Sources": {
+      "title": "Sources",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "title": "Doc",
+          "default": true,
+          "type": "boolean"
+        },
+        "case": {
+          "title": "Case",
+          "default": true,
+          "type": "boolean"
+        },
+        "metric": {
+          "title": "Metric",
+          "default": true,
+          "type": "boolean"
+        },
+        "log": {
+          "title": "Log",
+          "default": false,
+          "type": "boolean"
+        },
+        "trace": {
+          "title": "Trace",
+          "default": false,
+          "type": "boolean"
+        },
+        "topology": {
+          "title": "Topology",
+          "default": false,
+          "type": "boolean"
+        },
+        "image": {
+          "title": "Image",
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "QueryOptions": {
+      "title": "QueryOptions",
+      "type": "object",
+      "properties": {
+        "use_incident": {
+          "title": "Use Incident",
+          "default": true,
+          "type": "boolean"
+        },
+        "use_rca": {
+          "title": "Use Rca",
+          "default": true,
+          "type": "boolean"
+        },
+        "rca_top_k": {
+          "title": "Rca Top K",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 50,
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "RetrievalOptions": {
+      "title": "RetrievalOptions",
+      "type": "object",
+      "properties": {
+        "mode": {
+          "title": "Mode",
+          "default": "bm25",
+          "enum": [
+            "bm25",
+            "dense",
+            "hybrid"
+          ],
+          "type": "string"
+        },
+        "path_enabled": {
+          "title": "Path Enabled",
+          "default": true,
+          "type": "boolean"
+        },
+        "per_route_top_k": {
+          "title": "Per Route Top K",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 100,
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EmbeddingOptions": {
+      "title": "EmbeddingOptions",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "default": false,
+          "type": "boolean"
+        },
+        "model": {
+          "title": "Model",
+          "default": "text-embedding-v4",
+          "enum": [
+            "text-embedding-v4"
+          ],
+          "type": "string"
+        },
+        "dimension": {
+          "title": "Dimension",
+          "default": 1024,
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "RerankerOptions": {
+      "title": "RerankerOptions",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "default": false,
+          "type": "boolean"
+        },
+        "model": {
+          "title": "Model",
+          "default": "gte-rerank-v2",
+          "enum": [
+            "gte-rerank-v2"
+          ],
+          "type": "string"
+        },
+        "candidate_top_k": {
+          "title": "Candidate Top K",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 100,
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SourceWeights": {
+      "title": "SourceWeights",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "title": "Doc",
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number"
+        },
+        "case": {
+          "title": "Case",
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number"
+        },
+        "metric": {
+          "title": "Metric",
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number"
+        },
+        "log": {
+          "title": "Log",
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number"
+        },
+        "trace": {
+          "title": "Trace",
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number"
+        },
+        "topology": {
+          "title": "Topology",
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number"
+        },
+        "image": {
+          "title": "Image",
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FusionOptions": {
+      "title": "FusionOptions",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "default": true,
+          "type": "boolean"
+        },
+        "rrf_k": {
+          "title": "Rrf K",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 1000,
+          "type": "integer"
+        },
+        "weights": {
+          "$ref": "#/definitions/SourceWeights"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PackOptions": {
+      "title": "PackOptions",
+      "type": "object",
+      "properties": {
+        "top_k": {
+          "title": "Top K",
+          "default": 6,
+          "minimum": 1,
+          "maximum": 100,
+          "type": "integer"
+        },
+        "max_context_chars": {
+          "title": "Max Context Chars",
+          "default": 12000,
+          "minimum": 1,
+          "maximum": 100000,
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

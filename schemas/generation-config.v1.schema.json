@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GenerationConfig",
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "title": "Enabled",
+      "default": true,
+      "type": "boolean"
+    },
+    "mode": {
+      "title": "Mode",
+      "default": "extractive",
+      "enum": [
+        "extractive",
+        "cloud"
+      ],
+      "type": "string"
+    },
+    "model": {
+      "title": "Model",
+      "default": "qwen-plus",
+      "maxLength": 80,
+      "pattern": "^(qwen-plus|qwen-flash|glm-[a-zA-Z0-9.-]+)$",
+      "type": "string"
+    },
+    "temperature": {
+      "title": "Temperature",
+      "default": 0.0,
+      "minimum": 0,
+      "maximum": 1,
+      "type": "number"
+    },
+    "max_output_tokens": {
+      "title": "Max Output Tokens",
+      "default": 4096,
+      "minimum": 512,
+      "maximum": 8192,
+      "type": "integer"
+    },
+    "max_input_chars": {
+      "title": "Max Input Chars",
+      "default": 40000,
+      "minimum": 1000,
+      "maximum": 100000,
+      "type": "integer"
+    },
+    "include_rca_candidates": {
+      "title": "Include Rca Candidates",
+      "default": true,
+      "type": "boolean"
+    },
+    "max_candidates": {
+      "title": "Max Candidates",
+      "default": 3,
+      "minimum": 1,
+      "maximum": 8,
+      "type": "integer"
+    },
+    "max_steps": {
+      "title": "Max Steps",
+      "default": 5,
+      "minimum": 1,
+      "maximum": 8,
+      "type": "integer"
+    },
+    "repair_attempts": {
+      "title": "Repair Attempts",
+      "default": 0,
+      "minimum": 0,
+      "maximum": 1,
+      "type": "integer"
+    },
+    "save_intermediates": {
+      "title": "Save Intermediates",
+      "default": true,
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

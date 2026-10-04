@@ -1,0 +1,2 @@
+# Same incident identity/time filters, no RCA-derived query terms.
+query: {use_rca: false}

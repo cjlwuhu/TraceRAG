@@ -1,0 +1,3 @@
+retrieval: {mode: hybrid, path_enabled: false}
+embedding: {enabled: true}
+reranker: {enabled: false}

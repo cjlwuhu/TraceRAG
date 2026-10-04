@@ -1,0 +1,3 @@
+retrieval: {mode: dense}
+embedding: {enabled: true}
+reranker: {enabled: false}

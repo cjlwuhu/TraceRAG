@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://easyrag.local/schemas/historical-case.v1.schema.json",
+  "title": "EasyRAG HistoricalCase v1",
+  "description": "Only a human-verified resolved incident may satisfy this contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "case_id",
+    "source_incident_id",
+    "system",
+    "title",
+    "symptoms",
+    "rca_candidates",
+    "verified_root_cause",
+    "actions",
+    "evidence_refs",
+    "human_verified",
+    "verified_by",
+    "verified_at",
+    "source",
+    "raw_ref"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "case_id": { "type": "string", "pattern": "^[a-z][a-z0-9._-]{2,127}$" },
+    "source_incident_id": { "type": "string", "minLength": 1 },
+    "system": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "symptoms": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "rca_candidates": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "verified_root_cause": { "type": "string", "minLength": 1 },
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "human_verified": { "const": true },
+    "verified_by": { "type": "string", "minLength": 1 },
+    "verified_at": { "type": "string", "format": "date-time" },
+    "source": { "type": "string", "minLength": 1 },
+    "raw_ref": { "type": "string", "minLength": 1 }
+  }
+}

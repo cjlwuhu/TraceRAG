@@ -1,0 +1,165 @@
+{
+  "schema_version": "1.0",
+  "incident_id": "inc-1692602972-868acb166ba6",
+  "system": "online-boutique",
+  "lifecycle": "active",
+  "detection": {
+    "timestamp_unix": 1692602972,
+    "timestamp_utc": "2023-08-21T07:29:32Z",
+    "source": "benchmark_annotation",
+    "window_minutes": 5
+  },
+  "observations": {
+    "suspected_services": [
+      "emailservice",
+      "main",
+      "checkoutservice",
+      "adservice",
+      "recommendationservice",
+      "redis",
+      "frontend",
+      "shippingservice"
+    ],
+    "candidate_metrics": [
+      "emailservice_mem",
+      "main_mem",
+      "checkoutservice_mem",
+      "emailservice_latency-90",
+      "adservice_cpu",
+      "checkoutservice_latency",
+      "recommendationservice_mem",
+      "redis_mem",
+      "frontend_latency",
+      "shippingservice_mem"
+    ]
+  },
+  "rca_runs": [
+    {
+      "method": "pyrca_epsilon_diagnosis",
+      "candidates": [
+        {
+          "rank": 1,
+          "metric": "emailservice_mem",
+          "service": "emailservice",
+          "signal": "mem",
+          "score": 0.5659233205720805
+        },
+        {
+          "rank": 2,
+          "metric": "main_mem",
+          "service": "main",
+          "signal": "mem",
+          "score": 0.544175885631531
+        },
+        {
+          "rank": 3,
+          "metric": "checkoutservice_mem",
+          "service": "checkoutservice",
+          "signal": "mem",
+          "score": 0.5025932053736963
+        },
+        {
+          "rank": 4,
+          "metric": "emailservice_latency-90",
+          "service": "emailservice",
+          "signal": "latency-90",
+          "score": 0.49291638304359087
+        },
+        {
+          "rank": 5,
+          "metric": "adservice_cpu",
+          "service": "adservice",
+          "signal": "cpu",
+          "score": 0.3006888546772156
+        }
+      ],
+      "runtime_seconds": 0.1030890999827534
+    },
+    {
+      "method": "rcaeval_baro",
+      "candidates": [
+        {
+          "rank": 1,
+          "metric": "checkoutservice_latency",
+          "service": "checkoutservice",
+          "signal": "latency"
+        },
+        {
+          "rank": 2,
+          "metric": "recommendationservice_mem",
+          "service": "recommendationservice",
+          "signal": "mem"
+        },
+        {
+          "rank": 3,
+          "metric": "redis_mem",
+          "service": "redis",
+          "signal": "mem"
+        },
+        {
+          "rank": 4,
+          "metric": "frontend_latency",
+          "service": "frontend",
+          "signal": "latency"
+        },
+        {
+          "rank": 5,
+          "metric": "shippingservice_mem",
+          "service": "shippingservice",
+          "signal": "mem"
+        }
+      ],
+      "runtime_seconds": 0.03951829997822642
+    },
+    {
+      "method": "rcaeval_e_diagnosis",
+      "candidates": [
+        {
+          "rank": 1,
+          "metric": "emailservice_mem",
+          "service": "emailservice",
+          "signal": "mem",
+          "score": 0.5659233205720983
+        },
+        {
+          "rank": 2,
+          "metric": "main_mem",
+          "service": "main",
+          "signal": "mem",
+          "score": 0.5441758856315372
+        },
+        {
+          "rank": 3,
+          "metric": "checkoutservice_mem",
+          "service": "checkoutservice",
+          "signal": "mem",
+          "score": 0.5025932053736942
+        }
+      ],
+      "runtime_seconds": 1.4856233999598771
+    }
+  ],
+  "retrieval_text": "系统：online-boutique\n检测时间：2023-08-21T07:29:32Z\nRCA 候选服务：emailservice、main、checkoutservice、adservice、recommendationservice、redis、frontend、shippingservice\n方法 pyrca_epsilon_diagnosis 的根因候选：第1名 emailservice_mem（得分 0.565923）；第2名 main_mem（得分 0.544176）；第3名 checkoutservice_mem（得分 0.502593）；第4名 emailservice_latency-90（得分 0.492916）；第5名 adservice_cpu（得分 0.300689）\n方法 rcaeval_baro 的根因候选：第1名 checkoutservice_latency；第2名 recommendationservice_mem；第3名 redis_mem；第4名 frontend_latency；第5名 shippingservice_mem\n方法 rcaeval_e_diagnosis 的根因候选：第1名 emailservice_mem（得分 0.565923）；第2名 main_mem（得分 0.544176）；第3名 checkoutservice_mem（得分 0.502593）\n说明：以上均为算法候选，需结合日志、拓扑和工单证据确认。",
+  "source_refs": [
+    {
+      "source_type": "rca_result",
+      "method": "pyrca_epsilon_diagnosis",
+      "sha256": "3a4cbbcd93d93876d72d3321086576a8901c99f86c5167fc11c8ce305faf3456"
+    },
+    {
+      "source_type": "rca_result",
+      "method": "rcaeval_baro",
+      "sha256": "f4e79fc5ca05f4ace6a0636b323cd55c9c69b9dab9650f1f12f9ac42eca47a74"
+    },
+    {
+      "source_type": "rca_result",
+      "method": "rcaeval_e_diagnosis",
+      "sha256": "ceea18eb5a0faf07e6a523cb6a420a23fa18ff6ef159fd104f9b11686d7c54fb"
+    }
+  ],
+  "limitations": [
+    "Benchmark ground truth and injected fault labels were excluded.",
+    "The detection timestamp is a benchmark annotation, not an online detector result.",
+    "Root-cause entries are model candidates and are not confirmed resolutions."
+  ]
+}
