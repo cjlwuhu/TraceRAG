@@ -4,6 +4,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 import json
+import hashlib
 import os
 from pathlib import Path
 import secrets
@@ -87,6 +88,14 @@ class SignalOptions(StrictModel):
 class TelemetryRequest(StrictModel):
     csv: constr(strict=True, min_length=1, max_length=6000000)
     options: SignalOptions = Field(default_factory=SignalOptions)
+
+
+class CsvNormalizationSummary(StrictModel):
+    policy: Literal["duplicate_time_identical_v1"]
+    raw_rows: conint(strict=True, ge=1)
+    original_columns: conint(strict=True, ge=2)
+    normalized_columns: conint(strict=True, ge=2)
+    dropped_column_indices_zero_based: list[conint(strict=True, ge=0)]
 
 
 class ClaimReview(StrictModel):
@@ -382,13 +391,14 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None):
     @app.post("/api/telemetry", status_code=202)
     async def telemetry(request: Request):
         data = await payload(request, TelemetryRequest)
+        csv_bytes = data.csv.encode("utf-8")
         profile = data.options.profile()
         if not (rca_root / "scripts/run_signal_workflow.py").is_file():
             raise HTTPException(503, "RCA 文件接口尚未配置")
         def work(ident):
             folder = catalog.jobs / ident
             # Ignore original upload filenames entirely; they may contain benchmark labels.
-            (folder / "telemetry.private.csv").write_text(data.csv, encoding="utf-8")
+            (folder / "telemetry.private.csv").write_bytes(csv_bytes)
             write_json(folder / "signal-profile.json", profile)
             queue.update(ident, phase="时序检测 → RCA → 指标摘要")
             completed = subprocess.run([rca_python, str(rca_root / "scripts/run_signal_workflow.py"),
@@ -403,13 +413,21 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None):
             if len(paths) != 1:
                 raise ValueError("RCA must produce exactly one bundle")
             bundle = read_json(paths[0])
+            # 只公开处理计数；列名、单元格和本机路径留在 RCA 的私有审计产物。
+            normalization_path = paths[0].parent / "normalization-report.json"
+            extra = {}
+            if normalization_path.is_file():
+                report = read_json(normalization_path)
+                summary = CsvNormalizationSummary.parse_obj({
+                    key: report[key] for key in CsvNormalizationSummary.__fields__})
+                extra["csv_normalization"] = summary.dict()
             # 没有告警或观测窗口不完整时只返回阶段状态，不能生成貌似完整的工单。
             if bundle["analysis"].get("status") != "complete":
-                return {"rag_ready": False, "detection": bundle["detection"], "analysis": bundle["analysis"]}
+                return {"rag_ready": False, "detection": bundle["detection"], "analysis": bundle["analysis"], **extra}
             queue.update(ident, phase="导入已完成事件")
-            return {"rag_ready": True, **catalog.import_bundle(bundle)}
+            return {"rag_ready": True, **catalog.import_bundle(bundle), **extra}
         return queue.submit("telemetry", {"options": data.options.dict(),
-                            "csv_sha256": fingerprint(data.csv)}, work)
+                            "csv_sha256": hashlib.sha256(csv_bytes).hexdigest()}, work)
 
     @app.post("/api/runs", status_code=202)
     async def run(request: Request):

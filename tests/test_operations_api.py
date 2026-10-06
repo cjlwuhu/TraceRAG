@@ -4,6 +4,8 @@ import copy
 import importlib
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -24,17 +26,41 @@ class OperationsApiTests(unittest.TestCase):
         finally:
             os.chdir(original_directory)
         cls.client = TestClient(cls.module.app)
+        cls.client.__enter__()
         cls.incident = json.loads((ROOT / "examples/incidents/checkoutservice-incident.v1.json").read_text(encoding="utf-8"))
 
     @classmethod
     def tearDownClass(cls):
-        cls.client.close()
+        cls.client.__exit__(None, None, None)
 
     def request(self, **changes):
         body = {"query": "checkoutservice 延迟如何验证和处置", "incident": self.incident,
                 "overrides": {"save_intermediates": False}}
         body.update(changes)
         return self.client.post("/v1/evidence/pack", json=body)
+
+    def test_http_retrieval_works_without_legacy_model_or_vector_packages(self):
+        # A hidden import of the retired GPU/OCR/Qdrant stack would make a clean
+        # CPU installation fail before it can answer an ordinary HTTP query.
+        code = """import builtins,os
+original=builtins.__import__
+def restricted(name,*args,**kwargs):
+ if name.split('.')[0] in {'torch','transformers','qdrant_client','zhipuai','paddleocr','bm25s'} or name.startswith('llama_index.vector_stores'):
+  raise ImportError('retired optional package: '+name)
+ return original(name,*args,**kwargs)
+builtins.__import__=restricted
+import api
+from fastapi.testclient import TestClient
+with TestClient(api.app) as client:
+ response=client.post('/v1/evidence/pack',json={'query':'checkoutservice 延迟如何验证','overrides':{'save_intermediates':False}})
+ assert response.status_code==200, response.text
+ assert response.json()['pack']['items']
+"""
+        env = {**os.environ, "EASYRAG_CONFIG": str(ROOT / "src/configs/easyrag.operations.windows.yaml"),
+               "PYTHONPATH": str(ROOT / "src"), "PYTHONIOENCODING": "utf-8"}
+        result = subprocess.run([sys.executable, "-c", code], cwd=ROOT,
+            env=env, capture_output=True, timeout=40)
+        self.assertEqual(0, result.returncode, result.stderr.decode("utf-8", errors="replace"))
 
     def test_config_is_safe_and_describes_only_implemented_capabilities(self):
         response = self.client.get("/v1/operations/config")
@@ -75,7 +101,7 @@ class OperationsApiTests(unittest.TestCase):
         self.assertEqual(422, self.request(incident=incident).status_code)
 
     def test_unconfigured_runner_is_reported_as_unavailable(self):
-        with patch.object(self.module.easyrag, "operations_runner", None):
+        with patch.object(self.module.app.state, "operations_runner", None):
             self.assertEqual(503, self.request().status_code)
             self.assertEqual(503, self.client.get("/v1/operations/config").status_code)
 
@@ -99,7 +125,7 @@ class OperationsApiTests(unittest.TestCase):
         from test_dense_operations import FakeModels
         from easyrag.retrieval.vector_cache import CachedEmbeddings
         from easyrag.retrieval.cloud_models import CloudModelError
-        runner = self.module.easyrag.operations_runner
+        runner = self.module.app.state.operations_runner
         models = FakeModels()
         overrides = {"retrieval": {"mode": "hybrid"}, "embedding": {"enabled": True, "dimension": 64},
                      "reranker": {"enabled": True}, "save_intermediates": False}
@@ -147,7 +173,7 @@ class OperationsApiTests(unittest.TestCase):
                 "overrides": {"save_intermediates": False},
                 "generation_overrides": {"mode": "cloud", "save_intermediates": False}}
         self.assertEqual(503, self.client.post("/v1/work-orders", json=body).status_code)
-        with patch.object(self.module.easyrag.operations_runner, "cloud_models", DashScopeModels()), \
+        with patch.object(self.module.app.state.operations_runner, "cloud_models", DashScopeModels()), \
                 patch("easyrag.generation.work_order.generate_json", return_value=(draft, {})) as call:
             response = self.client.post("/v1/work-orders", json=body)
             self.assertEqual(200, response.status_code, response.text)

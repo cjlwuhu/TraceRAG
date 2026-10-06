@@ -69,6 +69,15 @@ def describe_error(exc):
 def rca_problem(stderr):
     # Match known validation categories; untrusted CSV contents never reach logs.
     text = stderr.decode("utf-8", errors="replace").lower()
+    if "conflicting duplicate time columns" in text:
+        return ConsoleProblem("rca_conflicting_time_columns", "CSV 的重复时间列不一致",
+            "重复的 time 列必须逐行完全一致才能合并；请核对采集来源并修正冲突，不能把第二列当作指标。",
+            service="RCA")
+    # 兼容旧 RCA 入口，也说明新入口对重复非时间指标的拒绝规则。
+    if "duplicate csv column names" in text or "duplicate csv columns are not allowed" in text:
+        return ConsoleProblem("rca_duplicate_columns", "CSV 存在重复列名",
+            "指标列名必须唯一；新版 RCA 会合并逐行完全一致的重复 time 列，有冲突的时间列和重复指标仍需修正。",
+            service="RCA")
     if "time" in text or "timestamp" in text:
         hint = "CSV 需要 time 列，使用按时间递增、无重复的整秒 Unix 时间戳。"
     elif any(word in text for word in ("nan", "finite", "numeric", "float", "convert", "number")):

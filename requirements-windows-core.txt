@@ -1,8 +1,7 @@
 # Windows/Python 3.12 baseline for TraceRAG (RCA remains an external environment).
 #
-# This intentionally excludes local OCR (Paddle), dense embedding models,
-# local rerankers, and Streamlit. Those optional stacks should not downgrade
-# RCA's NumPy/Pandas/SciPy packages in fastapi_env.
+# The console uses CPU retrieval and explicit cloud services. The retired
+# GPU/OCR/Streamlit/Qdrant stack is not part of the current application.
 
 # 本项目契约使用 Pydantic v1 API；避免新环境解析到不兼容的 v2。
 pydantic==1.10.22
@@ -10,24 +9,12 @@ pydantic==1.10.22
 setuptools>=69,<81
 
 llama-index-core==0.10.29
-llama-index-vector-stores-qdrant==0.2.0
-qdrant-client==1.8.2
-
-# Keep the Qdrant gRPC/protobuf set internally consistent on Windows.
-grpcio==1.62.1
-grpcio-tools==1.62.1
-protobuf==4.25.3
-
-openai==1.19.0
 httpx==0.27.0
 
 jieba==0.42.1
 rank-bm25==0.2.2
-bm25s==0.1.7
-nltk==3.8.1
-tiktoken==0.6.0
-nest-asyncio==1.6.0
 PyYAML==6.0.1
+Pillow>=10,<13
 
 fastapi>=0.115,<0.116
 uvicorn>=0.30,<1

@@ -364,6 +364,9 @@ async function poll() {
           eventId.value = job.result.event_id;
           await chooseEvent();
           notice.value = "时序处理完成，事件已导入。";
+          const merged = job.result.csv_normalization?.dropped_column_indices_zero_based?.length || 0;
+          if (merged)
+            notice.value += ` 已合并 ${merged} 列一致的 time，保留 ${job.result.csv_normalization.normalized_columns} 列；原始 CSV 和处理记录已保留。`;
           showUpload.value = false;
         } else
           notice.value =
@@ -686,7 +689,7 @@ onUnmounted(() => {
               <h2>导入时序</h2>
               <span>CSV · 最大 6 MB</span>
             </div>
-            <p>time 列为 Unix 秒，其他列为数值指标。</p>
+            <p>time 列为 Unix 秒，其他列为数值指标。逐行一致的重复 time 列会合并并保留处理记录；重复指标或冲突时间列会报错。</p>
             <div class="upload-grid">
               <label
                 >时序 CSV<input
@@ -1271,6 +1274,11 @@ onUnmounted(() => {
                     <td>
                       {{ j.problem?.message || j.phase
                       }}<small v-if="j.problem">{{ j.problem.hint }}</small
+                      ><small v-if="j.result?.csv_normalization?.dropped_column_indices_zero_based?.length">
+                        时间列合并 {{ j.result.csv_normalization.dropped_column_indices_zero_based.length }} 列 ·
+                        {{ j.result.csv_normalization.raw_rows }} 行 ·
+                        {{ j.result.csv_normalization.original_columns }} → {{ j.result.csv_normalization.normalized_columns }} 列
+                      </small
                       ><button
                         v-if="j.result?.generation_run_id"
                         class="text-button"

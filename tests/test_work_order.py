@@ -157,6 +157,111 @@ class WorkOrderTests(unittest.TestCase):
         with self.assertRaisesRegex(DraftValidationError, "require runbook"):
             parse_model_draft(draft, [x.evidence for x in self.pack.pack.items], GenerationConfig())
 
+    def test_generated_executable_shell_commands_and_blocks_are_rejected(self):
+        commands = (
+            "在redis Pod中执行'kubectl exec -it redis-xxx -- redis-cli info | grep used_memory'。",
+            "调用 `kubectl get pods -n online-boutique` 确认实例状态。",
+            "redis-cli INFO persistence",
+            "运行 curl --fail https://example.com/health 查看结果。",
+            "执行 Get-Content -LiteralPath C:/logs/service.log。",
+            "执行 bash -c 'echo ready'。",
+            "执行 rm -rf /tmp/cache。",
+            "运行 docker restart redis 进行修复。",
+            "缺少 kubectl debug 官方手册；随后运行 docker restart redis。",
+            "执行 systemctl restart redis。",
+            "执行 helm upgrade redis ./chart。",
+            '执行 python -c "print(1)"。',
+            "```shell\nkubectl logs redis-xxx\n```",
+            "~~~powershell\nGet-Process\n~~~",
+            '```python\nimport os\nos.system("echo ready")\n```',
+            "#!/bin/sh\necho ready",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                draft = self.draft()
+                draft["verification_steps"][0]["text"] = command
+                with self.assertRaisesRegex(DraftValidationError, "shell"):
+                    parse_model_draft(draft, [x.evidence for x in self.pack.pack.items], GenerationConfig())
+
+    def test_shell_command_guard_covers_all_model_narrative_fields(self):
+        base = self.draft()
+        doc = next(x.evidence for x in self.pack.pack.items if x.evidence.type == "doc")
+        base["proposed_actions"] = [{"text": "验证后评审处置方案",
+            "citations": [{"evidence_id": doc.evidence_id, "quote": doc.content}],
+            "preconditions": "确认适用条件", "risks": ["可能影响业务"], "rollback": "评审回退方案"}]
+        fields = (("summary", "text"), ("root_cause_candidates", 0, "statement", "text"),
+            ("root_cause_candidates", 0, "verification"), ("verification_steps", 0, "text"),
+            ("proposed_actions", 0, "text"), ("proposed_actions", 0, "preconditions"),
+            ("proposed_actions", 0, "risks", 0), ("proposed_actions", 0, "rollback"),
+            ("missing_information", 0), ("limitations", 0))
+        for field in fields:
+            with self.subTest(field=field):
+                draft = copy.deepcopy(base)
+                parent = draft
+                for key in field[:-1]:
+                    parent = parent[key]
+                parent[field[-1]] = "kubectl exec redis-xxx -- redis-cli info"
+                with self.assertRaisesRegex(DraftValidationError, "shell"):
+                    parse_model_draft(draft, [x.evidence for x in self.pack.pack.items], GenerationConfig())
+
+    def test_shell_commands_in_source_quotes_are_preserved(self):
+        doc = next(x.evidence for x in self.pack.pack.items if x.evidence.type == "doc")
+        quotes = ("原始手册示例：\n```shell\nkubectl debug node/example -it --image=ubuntu:latest\n```",
+                  '原始手册示例：\n```python\nimport os\nos.system("docker restart redis")\n```',
+                  "原始手册示例：\n```powershell\nGet-Process\n```")
+        for quote in quotes:
+            with self.subTest(quote=quote):
+                evidence = [x.evidence.copy(update={"content": quote}) if x.evidence.evidence_id == doc.evidence_id
+                            else x.evidence for x in self.pack.pack.items]
+                draft = self.draft()
+                draft["verification_steps"] = [{"text": "核对所引手册版本和适用环境，先制定验证方案。",
+                    "citations": [{"evidence_id": doc.evidence_id, "quote": quote}]}]
+                parsed = parse_model_draft(draft, evidence, GenerationConfig())
+                self.assertEqual(quote, parsed.verification_steps[0].citations[0].quote)
+
+    def test_normal_diagnostic_prose_and_tool_names_are_allowed(self):
+        descriptions = ("需要检查CPU、查询Pod日志；核对 kubectl 工具版本与 redis-cli 的适用环境。",
+            "The kubectl debug documentation does not establish whether Redis persistence is abnormal.",
+            "缺少适用版本的 kubectl debug 官方手册，需要补充后再设计验证步骤。",
+            "先核对 docker restart 官方手册、systemctl restart 文档以及 Python 工具版本。",
+            "The kubectl debug command is documented, but its applicability to this Redis incident remains unverified.",
+            "kubectl debug helps troubleshoot pods; it does not establish a root cause.",
+            "redis-cli INFO 命令用于查看服务器状态，当前还缺少适用手册。")
+        for text in descriptions:
+            with self.subTest(text=text):
+                draft = self.draft()
+                draft["verification_steps"][0]["text"] = text
+                parsed = parse_model_draft(draft, [x.evidence for x in self.pack.pack.items], GenerationConfig())
+                self.assertEqual(text, parsed.verification_steps[0].text)
+
+    def test_cloud_documentation_description_is_accepted(self):
+        draft = self.draft()
+        text = "缺少适用版本的 kubectl debug 官方手册，需要补充后再设计验证步骤。"
+        draft["verification_steps"][0]["text"] = text
+        response = {"choices": [{"finish_reason": "stop", "message": {
+            "content": json.dumps(draft, ensure_ascii=False)}}], "usage": {"total_tokens": 123}}
+        models = DashScopeModels(api_key="unit-test-no-network",
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, json=response)))
+        result = asyncio.run(self.generator(models=models).run(self.record, overrides={"mode": "cloud"}))
+        self.assertEqual("draft", result["status"])
+        self.assertEqual(text, result["draft"]["verification_steps"][0]["text"])
+
+    def test_cloud_shell_output_fails_without_saving_a_work_order(self):
+        draft = self.draft()
+        draft["verification_steps"][0]["text"] = "kubectl exec redis-xxx -- redis-cli info"
+        response = {"choices": [{"finish_reason": "stop", "message": {
+            "content": json.dumps(draft, ensure_ascii=False)}}], "usage": {"total_tokens": 123}}
+        models = DashScopeModels(api_key="unit-test-no-network",
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, json=response)))
+        with tempfile.TemporaryDirectory() as temporary:
+            generator = WorkOrderGenerator(models=models, output_dir=temporary)
+            with self.assertRaisesRegex(DraftValidationError, "shell"):
+                asyncio.run(generator.run(self.record, overrides={"mode": "cloud"}))
+            files = list(Path(temporary).glob("*/*"))
+            self.assertEqual(["audit.jsonl"], [path.name for path in files])
+            events = [json.loads(line) for line in files[0].read_text(encoding="utf-8").splitlines()]
+            self.assertEqual("generation_failed", events[-1]["event"])
+
     def test_missing_backend_explicit_and_failed_run_logs_no_provider_text(self):
         with self.assertRaises(CloudBackendUnavailable):
             asyncio.run(self.generator().run(self.record, overrides={"mode": "cloud"}))

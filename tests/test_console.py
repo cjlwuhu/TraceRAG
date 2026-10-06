@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sys
 import tempfile
 import time
 import unittest
@@ -37,7 +38,8 @@ class ConsoleTests(unittest.TestCase):
         settings["operations_output_dir"] = str(self.root / "outputs/operations")
         write_json(self.root / "src/configs/easyrag.operations.windows.yaml", settings)
         shutil.copytree(ROOT / "examples/operations_knowledge", self.root / "examples/operations_knowledge")
-        self.app = create_app(self.root)
+        self.rca_root = self.root / "external RCA with spaces"
+        self.app = create_app(self.root, rca_root=self.rca_root, rca_python=sys.executable)
         self.client = TestClient(self.app, base_url="http://127.0.0.1")
         self.client.__enter__()
         self.boot = self.client.get("/api/bootstrap").json()
@@ -335,6 +337,60 @@ class ConsoleTests(unittest.TestCase):
         problem = describe_error(caught.exception)
         self.assertEqual("timeout", problem["code"])
         self.assertNotIn("PRIVATE_PROXY_CREDENTIAL", json.dumps(problem))
+
+    def test_duplicate_csv_columns_have_specific_sanitized_diagnostic(self):
+        for error in (b"ValueError: duplicate CSV column names",
+                      b"ValueError: duplicate CSV columns are not allowed"):
+            with self.subTest(error=error):
+                problem = describe_error(rca_problem(error + b" SECRET_CSV_ROW time SECRET_KEY"))
+                self.assertEqual("rca_duplicate_columns", problem["code"])
+                self.assertEqual("CSV 存在重复列名", problem["message"])
+                self.assertIn("time", problem["hint"])
+                self.assertIn("一致", problem["hint"])
+                self.assertNotIn("SECRET_CSV_ROW", json.dumps(problem))
+                self.assertNotIn("SECRET_KEY", json.dumps(problem))
+
+    def test_conflicting_time_columns_have_specific_sanitized_diagnostic(self):
+        problem = describe_error(rca_problem(
+            b"ValueError: conflicting duplicate time columns SECRET_CSV_ROW SECRET_KEY"))
+        self.assertEqual("rca_conflicting_time_columns", problem["code"])
+        self.assertIn("time", problem["hint"])
+        self.assertNotIn("SECRET_CSV_ROW", json.dumps(problem))
+        self.assertNotIn("SECRET_KEY", json.dumps(problem))
+
+    def test_telemetry_preserves_upload_bytes_and_exposes_only_normalization_counts(self):
+        # Wrong newline conversion/hash breaks provenance; exposing the full report
+        # would leak raw column names and filesystem paths into public job records.
+        script = self.rca_root / "scripts/run_signal_workflow.py"
+        script.parent.mkdir(parents=True)
+        script.write_text("""import argparse,json,pathlib
+p=argparse.ArgumentParser()
+for name in ('telemetry','profile','output-dir','preprocessing'):p.add_argument('--'+name)
+a=p.parse_args()
+folder=pathlib.Path(a.output_dir)/'signal-run-fixture';folder.mkdir(parents=True)
+base=pathlib.Path(__file__).parents[1]
+for name in ('signal-bundle.json','normalization-report.json'):
+ (folder/name).write_bytes((base/name).read_bytes())
+""", encoding="utf-8")
+        write_json(self.rca_root / "signal-bundle.json", fixture())
+        report = {"policy": "duplicate_time_identical_v1", "raw_rows": 2,
+            "original_columns": 3, "normalized_columns": 2,
+            "dropped_column_indices_zero_based": [2],
+            "column_mapping": [{"name": "SECRET_METRIC"}],
+            "original_path": "SECRET_PRIVATE_PATH"}
+        write_json(self.rca_root / "normalization-report.json", report)
+        csv = "time,x,time\n1,7,1\n2,8,2\n"
+        job = self.completed(self.post("/api/telemetry", {"csv": csv}))
+        expected = {k: report[k] for k in ("policy", "raw_rows", "original_columns",
+            "normalized_columns", "dropped_column_indices_zero_based")}
+        self.assertEqual(expected, job["result"].get("csv_normalization"))
+        uploaded = (self.root / "outputs/console/jobs" / job["id"] / "telemetry.private.csv")
+        self.assertEqual(csv.encode("utf-8"), uploaded.read_bytes())
+        self.assertEqual(hashlib.sha256(csv.encode("utf-8")).hexdigest(), job["request"]["csv_sha256"])
+        self.assertTrue(job["result"]["rag_ready"])
+        for path in ("/api/jobs/" + job["id"], "/api/logs"):
+            self.assertNotIn("SECRET_METRIC", self.client.get(path).text)
+            self.assertNotIn("SECRET_PRIVATE_PATH", self.client.get(path).text)
 
 
 if __name__ == "__main__":

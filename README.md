@@ -2,7 +2,9 @@
 
 TraceRAG 是面向运维故障研究的本地原型，连接 **时序数据 → 异常检测 → 根因候选 → RAG 证据检索 → 待审核工单草稿**。默认使用 CPU、BM25 和离线摘录生成，不需要 GPU、模型下载或 API Key。
 
-本项目在 [BUAADreamer/EasyRAG](https://github.com/BUAADreamer/EasyRAG) 基础上扩展事件契约、RCA 联动、证据审计和科研控制台。展示名称使用 TraceRAG，内部 Python 包继续叫 `easyrag`，兼容既有代码、配置和数据格式。上游原版的 GPU/比赛复现流程与本项目的 Windows 离线入口分别保留。
+本项目在 [BUAADreamer/EasyRAG](https://github.com/BUAADreamer/EasyRAG) 基础上扩展事件契约、RCA 联动、证据审计和科研控制台。展示名称使用 TraceRAG，内部 Python 包继续叫 `easyrag`，兼容既有事件、配置和数据格式。当前源码专注运维控制台与研究链路，旧 GPU/比赛、Streamlit 和 OCR 分支已移除；上游复现请使用原仓库。
+
+网站逐项操作、上传文件格式、保存目录及人工修改方法见 [UI 使用教程](assets/UI使用教程.md)。
 
 ## 当前能做什么
 
@@ -18,7 +20,7 @@ TraceRAG 是面向运维故障研究的本地原型，连接 **时序数据 → 
 
 第 9 阶段已完成 375 个 RE1 样本的冻结基线。TT 的 125 个样本中，使用注入时间触发的 RCA 服务 Hit@1 为 **59.2%**；真实检测器的首告警全部早于目标注入，要求及时报警且首位根因正确的端到端 Hit@1 为 **0%**。这说明需要改进检测和预处理，不能把链路跑通解释为可用诊断精度。评分口径见 [9b 基线记录](docs/steps/09b-preprocessing-and-baseline.md)。
 
-真实人工确认案例为 **0**，独立人工相关性和陈述支持标注也为 **0**，相关质量指标保持未知。`examples/` 中的教学案例仅用于软件演示，与本机真实长期知识库的统计分开。告警截图 OCR/视觉解析、设备拓扑图检索与影响范围契约、代表性的多源效果评测仍需补齐。参见 [第 9 阶段总验收](docs/steps/09-stage-review.md) 与 [申请书对照和本阶段交付](docs/steps/10b-proposal-and-delivery.md)。
+第 9 阶段验收时真实人工确认案例为 **0**，独立人工相关性和陈述支持标注也为 **0**，相关质量指标保持未知。本机随后保存的占位测试记录不能计作真实核验材料。`examples/` 中的教学案例仅用于软件演示，与真实长期知识库的统计分开。告警截图 OCR/视觉解析、设备拓扑图检索与影响范围契约、代表性的多源效果评测仍需补齐。参见 [第 9 阶段总验收](docs/steps/09-stage-review.md) 与 [申请书对照和本阶段交付](docs/steps/10b-proposal-and-delivery.md)。
 
 ## Windows 安装
 
@@ -33,7 +35,7 @@ npm.cmd --prefix .\web ci
 npm.cmd --prefix .\web run build
 ```
 
-`requirements-windows-lock.txt` 冻结本轮干净 Windows / Python 3.12 环境的完整版本；`requirements-windows-core.txt` 保留直接依赖与兼容范围。默认路径无需启动 Qdrant 服务；新 OperationsRunner 的可选 Dense 使用 SQLite 向量缓存和精确余弦检索。原 `requirements.txt` 保留上游 Linux/GPU 复现依赖，不作为这里的 Windows 安装入口。Paddle OCR、本地大模型和本地重排属于单独的可选环境。
+`requirements-windows-lock.txt` 冻结已验证的 Windows / Python 3.12 依赖；`requirements-windows-core.txt` 保留当前直接依赖与兼容范围。可选 Dense 使用 SQLite 向量缓存和精确余弦检索。当前入口不依赖 Qdrant、GPU、本地模型、Paddle OCR 或 Streamlit。
 
 ### RCA 是独立工程
 
@@ -175,6 +177,7 @@ $env:TRACERAG_TEST_RCA_PYTHON = $traceRcaPython
 ```text
 src/run_pipeline.py              本地五段流水线 CLI
 src/operations_console.py        新控制台服务入口
+src/api.py                       可选的轻量 Operations HTTP 服务
 src/run_operations.py            独立检索实验
 src/run_work_order.py            已有证据包生成草稿
 src/verify_work_order.py          结构、来源、引用与导出一致性审计
@@ -187,7 +190,7 @@ web/                             Vue 前端
 docs/steps/                      分阶段实施记录和限制
 ```
 
-原 `src/api.py`、`src/webui.py`、`src/main.py` 与 `scripts/` 保留上游路径；旧 Streamlit 和比赛入口不等同于新控制台。原竞赛数据及 NLTK 下载缓存不随源码快照上传；上游复现需要另外准备其数据和环境。完整改造进度见 [ROADMAP](docs/ROADMAP.md)。
+`src/api.py` 只保留现行证据包、工单和配置接口，默认绑定 `127.0.0.1:8000`；网页仍由 `src/operations_console.py` 提供。旧 Streamlit、比赛入口、模型适配及竞赛预处理脚本已清理。完整改造进度见 [ROADMAP](docs/ROADMAP.md)，本次范围与核验见 [Cloud 审计和清理记录](docs/steps/10g-cloud-audit-and-cleanup.md)。
 
 ## 上游归属与 Citation
 

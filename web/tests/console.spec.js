@@ -114,6 +114,26 @@ test("real CSV bridge with RCA disabled produces an import without RCA runs", as
   expect((await response.json()).rca_runs).toEqual([]);
 });
 
+test("identical duplicate time CSV is normalized with BARO and reports the merged column", async ({ page }) => {
+  test.skip(!process.env.TRACERAG_TEST_DUPLICATE_TIME_CSV, "需显式提供 4201 行、51 列的重复 time 原始样本");
+  await page.goto("/");
+  await page.getByRole("button", { name: "上传 CSV" }).click();
+  await page.getByLabel("时序 CSV", { exact: true }).setInputFiles(process.env.TRACERAG_TEST_DUPLICATE_TIME_CSV);
+  await page.getByRole("button", { name: "处理并导入" }).click();
+  await expect(page.getByText("时序处理完成，事件已导入。", { exact: false })).toBeVisible({ timeout: 60000 });
+  await expect(page.getByText("已合并 1 列一致的 time", { exact: false })).toBeVisible();
+  const selected = await page.locator("#event").inputValue();
+  const incident = await (await page.request.get("/api/events/" + selected)).json();
+  expect(incident.rca_runs.map((r) => r.method)).toEqual(["rcaeval_baro_re1_window"]);
+  expect(incident.rca_runs.flatMap((r) => r.candidates).some((c) => /^time(?:\.|$)/.test(c.metric))).toBe(false);
+  const jobs = await (await page.request.get("/api/jobs")).json();
+  const imported = jobs.find((j) => j.result?.event_id === selected);
+  expect(imported.result.csv_normalization).toEqual({
+    policy: "duplicate_time_identical_v1", raw_rows: 4201,
+    original_columns: 51, normalized_columns: 50, dropped_column_indices_zero_based: [47],
+  });
+});
+
 test("mobile layout, old-schema archive, and engineering warnings", async ({
   page,
 }) => {

@@ -142,13 +142,34 @@ def parse_model_draft(data, evidence, config):
     # Do not scan quotations: an historical case may legitimately quote a past resolution.
     def prose(value):
         if isinstance(value, dict):
-            return " ".join(prose(v) for k, v in value.items() if k != "citations")
+            return "\n".join(prose(v) for k, v in value.items() if k != "citations")
         if isinstance(value, list):
-            return " ".join(prose(v) for v in value)
+            return "\n".join(prose(v) for v in value)
         return value if isinstance(value, str) else ""
     narrative = prose(draft.dict())
     if re.search(r"已确认根因|根因已确认|故障已恢复|已执行修复|confirmed root cause|incident (?:is )?resolved", narrative, re.I):
         raise DraftValidationError("Generated draft improperly claims confirmation or resolution")
+    # A subcommand name can refer to its documentation. Require a concrete
+    # argument for target-taking commands; keep original evidence quotes exempt.
+    description = (r"(?:documentation|docs?|manual|reference|guide|commands?|helps?|supports?|provides?|allows?|is|are|does|can|may|should)\b"
+                   r"|(?:官方)?(?:手册|文档)|命令|用于|可用于|可以")
+    argument = r"[ \t]+(?!(?:" + description + r"))[A-Za-z0-9_./~$%{'\"-]"
+    shell = (r"(?:`{3,}|~{3,})[ \t]*(?:sh|shell|bash|zsh|ksh|fish|console|powershell|pwsh|ps1|cmd|bat|batch|python[23]?|py)\b"
+             r"|(?:^|\n)[ \t]*#![^\n]*\b(?:sh|bash|zsh|ksh|fish|pwsh|python[23]?)\b"
+             r"|(?<![A-Za-z0-9_-])(?:"
+             r"(?:kubectl|oc)[ \t]+(?:--?[A-Za-z]|(?:get|describe|logs|exec|debug|apply|delete|patch|edit|rollout|scale|create|replace|port-forward|top|config)\b" + argument + r")"
+             r"|redis-cli[ \t]+(?:--?[A-Za-z]|(?:info|ping|config|monitor|client|keys|scan|get|set|del|flushall|flushdb|shutdown|bgsave|bgrewriteaof)\b)(?![ \t]+(?:" + description + r"))"
+             r"|(?:docker|podman)[ \t]+(?:restart|start|stop|kill|exec|run|rm|inspect|logs|pull|push|build|compose)\b" + argument +
+             r"|systemctl[ \t]+(?:restart|start|stop|reload|enable|disable|status|mask|unmask|kill|show|cat)\b" + argument +
+             r"|helm[ \t]+(?:upgrade|install|uninstall|rollback|get|repo|dependency|template)\b" + argument +
+             r"|python[23]?[ \t]+-[cm]\b" + argument +
+             r"|(?:curl|wget)[ \t]+(?:-|https?://)"
+             r"|(?:sh|bash|zsh|powershell|pwsh)[ \t]+-(?:c|command|file|encodedcommand)\b"
+             r"|cmd[ \t]+/[ck]\b"
+             r"|(?:Get|Set|Remove|New|Start|Stop|Invoke|Test|Copy|Move)-[A-Za-z]+[ \t]+(?:-|[A-Za-z]:[/\\])"
+             r"|(?:rm|cp|mv|chmod|chown|kill|cat|grep|sed|awk|tail|head|ls)[ \t]+(?:--?[A-Za-z]|[/~]))")
+    if re.search(shell, narrative, re.I):
+        raise DraftValidationError("Generated draft contains executable shell commands or scripts")
     return draft
 
 
