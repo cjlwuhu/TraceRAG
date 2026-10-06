@@ -508,10 +508,10 @@ Set-Location 'D:/Project/EasyRAG'
 
 | 阶段记录 | 主题 |
 |---|---|
-| [01](../docs/steps/01-incident-document.md) / [02](../docs/steps/02-knowledge-corpus.md) / [03](../docs/steps/03-evidence-retrievers.md) | 事件、知识、证据契约与来源 |
-| [04](../docs/steps/04-evidence-pack-experiments.md) / [05](../docs/steps/05-telemetry-detection-bridge.md) / [06](../docs/steps/06-cloud-hybrid-retrieval.md) | 实验、时序桥接、云检索 |
-| [07](../docs/steps/07-grounded-work-orders.md) / [08](../docs/steps/08-local-research-console.md) / [08b](../docs/steps/08b-minimal-console-settings.md) | 工单、控制台、设置 |
-| [09c](../docs/steps/09c-knowledge-and-review.md) / [09d](../docs/steps/09d-multisource-and-test.md) | 长期知识、人工复核、多源样例 |
-| [10 总验收](../docs/steps/10-stage-review.md) / [10f 使用说明](../docs/steps/10f-website-usage-and-csv-import.md) | 交付边界、CSV 修复与 UI 对应关系 |
+| 01 / 02 / 03 | 事件、知识、证据契约与来源 |
+| 04 / 05 / 06 | 实验、时序桥接、云检索 |
+| 07 / 08 / 08b | 工单、控制台、设置 |
+| 09c / 09d | 长期知识、人工复核、多源样例 |
+| 10 总验收 / 10f 使用说明 | 交付边界、CSV 修复与 UI 对应关系 |
 
 历史验收记录说明当时验证范围，不替代本次 API、数据和人工核验。部署状态与现有知识数量以本机页面和实际产物为准。

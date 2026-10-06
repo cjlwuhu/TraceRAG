@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -73,10 +74,10 @@ def _python(value):
     executable = str(value or sys.executable)
     found = shutil.which(executable)
     if found:
-        return str(Path(found).resolve())
+        return os.path.abspath(Path(found).expanduser())
     path = Path(executable).expanduser()
     if path.is_file():
-        return str(path.resolve())
+        return os.path.abspath(path)
     raise PipelineProblem("rca_python_missing", "找不到 RCA Python；请用 --rca-python 指定已配置的 Python 可执行文件。")
 
 

@@ -17,6 +17,7 @@ dist/
 temp/
 
 # Local inputs, knowledge, experiments, model weights and credentials
+/docs/
 data/
 knowledge/
 outputs/

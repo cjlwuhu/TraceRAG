@@ -5,7 +5,9 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
+import shutil
 import sys
 import subprocess
 import tempfile
@@ -18,6 +20,68 @@ from verify_work_order import audit
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+class PythonExecutableTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="python identity test ")
+        self.addCleanup(self.temp.cleanup)
+        self.home = Path(self.temp.name)
+        self.bin = self.home / "venv with spaces"
+        self.bin.mkdir()
+
+    def symlink(self):
+        alias = self.bin / ("python-alias.exe" if os.name == "nt" else "python-alias")
+        try:
+            alias.symlink_to(sys.executable)
+        except OSError as exc:
+            if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows does not grant permission to create symbolic links")
+            raise
+        self.assertTrue(alias.is_file())
+        return alias
+
+    def executable(self):
+        binary = self.bin / ("python-selected.exe" if os.name == "nt" else "python-selected")
+        shutil.copy2(sys.executable, binary)
+        return binary
+
+    def test_explicit_symlink_preserves_selected_interpreter_identity(self):
+        # Dereferencing this alias selects the base Python instead of the caller's venv.
+        from easyrag.orchestration.pipeline import _python
+        alias = self.symlink()
+        self.assertEqual(str(alias), _python(alias))
+
+    def test_home_relative_symlink_fallback_preserves_selected_interpreter_identity(self):
+        # The file fallback must expand the user directory without resolving the interpreter link.
+        from easyrag.orchestration.pipeline import _python
+        alias = self.symlink()
+        selected = "~/venv with spaces/" + alias.name
+        with patch.dict(os.environ, {"HOME": str(self.home), "USERPROFILE": str(self.home)}):
+            self.assertEqual(str(alias), _python(selected))
+
+    def test_bare_command_uses_selected_executable_from_path(self):
+        # PATH discovery must return an absolute interpreter path, including directories with spaces.
+        from easyrag.orchestration.pipeline import _python
+        binary = self.executable()
+        with patch.dict(os.environ, {"PATH": str(self.bin)}):
+            self.assertEqual(str(binary), _python(binary.name))
+
+    def test_relative_which_result_becomes_absolute_without_changing_selection(self):
+        # A relative PATH entry or explicit relative filename must retain the selected file.
+        from easyrag.orchestration.pipeline import _python
+        binary = self.executable()
+        previous = os.getcwd()
+        self.addCleanup(os.chdir, previous)
+        os.chdir(self.home)
+        with patch.dict(os.environ, {"PATH": "venv with spaces"}):
+            self.assertEqual(str(binary), _python(binary.name))
+            self.assertEqual(str(binary), _python(Path("venv with spaces") / binary.name))
+
+    def test_default_preserves_sys_executable_path(self):
+        # The default interpreter is often itself a venv symlink on Linux.
+        from easyrag.orchestration.pipeline import _python
+        self.assertEqual(sys.executable, _python(None))
 
 
 class PipelineTests(unittest.TestCase):

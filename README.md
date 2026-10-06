@@ -6,6 +6,8 @@ TraceRAG 是面向运维故障研究的本地原型，连接 **时序数据 → 
 
 网站逐项操作、上传文件格式、保存目录及人工修改方法见 [UI 使用教程](assets/UI使用教程.md)。
 
+阶段总结、申请书缺口与后续 Codex 任务见 [CODEX_HANDOFF.md](CODEX_HANDOFF.md)，服务器维护见 [DEPLOYMENT.md](DEPLOYMENT.md)。`docs/` 研究过程记录保留在本地，GitHub 当前版本和服务器发布包均排除该目录；下文提到的阶段记录需在本地查阅。
+
 ## 当前能做什么
 
 | 环节 | 已实现行为 | 使用边界 |
@@ -18,9 +20,9 @@ TraceRAG 是面向运维故障研究的本地原型，连接 **时序数据 → 
 | 本地控制台 | Vue + FastAPI，CSV 导入、参数、证据查看、人工复核与实验记录 | 绑定回环地址的单用户研究原型 |
 | 多源证据 | 一个真实 RE2 样例接入日志、调用链、拓扑摘要与派生指标图 | 结构化证据接入已实现；不是任意日志解析器或独立视觉诊断 |
 
-第 9 阶段已完成 375 个 RE1 样本的冻结基线。TT 的 125 个样本中，使用注入时间触发的 RCA 服务 Hit@1 为 **59.2%**；真实检测器的首告警全部早于目标注入，要求及时报警且首位根因正确的端到端 Hit@1 为 **0%**。这说明需要改进检测和预处理，不能把链路跑通解释为可用诊断精度。评分口径见 [9b 基线记录](docs/steps/09b-preprocessing-and-baseline.md)。
+第 9 阶段已完成 375 个 RE1 样本的冻结基线。TT 的 125 个样本中，使用注入时间触发的 RCA 服务 Hit@1 为 **59.2%**；真实检测器的首告警全部早于目标注入，要求及时报警且首位根因正确的端到端 Hit@1 为 **0%**。这说明需要改进检测和预处理，不能把链路跑通解释为可用诊断精度。评分口径见 9b 基线记录。
 
-第 9 阶段验收时真实人工确认案例为 **0**，独立人工相关性和陈述支持标注也为 **0**，相关质量指标保持未知。本机随后保存的占位测试记录不能计作真实核验材料。`examples/` 中的教学案例仅用于软件演示，与真实长期知识库的统计分开。告警截图 OCR/视觉解析、设备拓扑图检索与影响范围契约、代表性的多源效果评测仍需补齐。参见 [第 9 阶段总验收](docs/steps/09-stage-review.md) 与 [申请书对照和本阶段交付](docs/steps/10b-proposal-and-delivery.md)。
+第 9 阶段验收时真实人工确认案例为 **0**，独立人工相关性和陈述支持标注也为 **0**，相关质量指标保持未知。本机随后保存的占位测试记录不能计作真实核验材料。`examples/` 中的教学案例仅用于软件演示，与真实长期知识库的统计分开。告警截图 OCR/视觉解析、设备拓扑图检索与影响范围契约、代表性的多源效果评测仍需补齐。参见 第 9 阶段总验收 与 申请书对照和本阶段交付。
 
 ## Windows 安装
 
@@ -124,7 +126,7 @@ $traceManifest = Join-Path $traceBuild.directory 'corpus\manifest.jsonl'
   --manifest $traceManifest --reason '登记固定版本 AIOps 运维文本'
 ```
 
-登记会以明确列出的 manifest 并集发布新版本；以后扩充时须同时列出要保留的当前版本，避免遗漏既有资料。Kubernetes 手册、多源样例、RE1 研究数据与人工标注的准备方法分别见 [9a](docs/steps/09a-data-readiness.md)、[9c](docs/steps/09c-knowledge-and-review.md)、[9d](docs/steps/09d-multisource-and-test.md)。历史记录中的本机绝对路径仅是当时的产物位置，需要换成本次实际输出。
+登记会以明确列出的 manifest 并集发布新版本；以后扩充时须同时列出要保留的当前版本，避免遗漏既有资料。Kubernetes 手册、多源样例、RE1 研究数据与人工标注的准备方法分别见 9a、9c、9d。历史记录中的本机绝对路径仅是当时的产物位置，需要换成本次实际输出。
 
 | 目录 | 内容 |
 |---|---|
@@ -139,7 +141,7 @@ $traceManifest = Join-Path $traceBuild.directory 'corpus\manifest.jsonl'
 
 默认离线。在控制台“设置”中可以配置 Qwen / GLM 凭据与本地代理；密钥使用当前 Windows 用户绑定的 DPAPI 密文存储。Cloud 总开关开放服务能力，具体任务仍需选择 Dense / Hybrid、云重排或云生成。保存设置、打开网页不会调用模型；连接测试和云任务可能计费。
 
-Qwen 支持 `text-embedding-v4`、`gte-rerank-v2` 与生成模型，GLM 用于生成。密钥不写入 YAML、Git、工单或浏览器存储。命令行沿用服务端配置及环境变量；新流水线的离线默认行为不依赖控制台保存设置。已有云接口可用性记录不代表独立诊断效果验证。详见 [第 6 阶段](docs/steps/06-cloud-hybrid-retrieval.md) 与 [8b 设置说明](docs/steps/08b-minimal-console-settings.md)。
+Qwen 支持 `text-embedding-v4`、`gte-rerank-v2` 与生成模型，GLM 用于生成。密钥不写入 YAML、Git、工单或浏览器存储。命令行沿用服务端配置及环境变量；新流水线的离线默认行为不依赖控制台保存设置。已有云接口可用性记录不代表独立诊断效果验证。详见 第 6 阶段 与 8b 设置说明。
 
 ## 验证命令
 
@@ -168,9 +170,9 @@ $env:TRACERAG_TEST_RCA_ROOT = $traceRcaRoot
 $env:TRACERAG_TEST_RCA_PYTHON = $traceRcaPython
 ```
 
-`TRACERAG_TEST_PYTHON` 运行 TraceRAG 服务，`TRACERAG_TEST_RCA_PYTHON` 运行独立 RCA；后者未设置时沿用服务 Python，该环境必须具备 RCA 依赖。未配置测量文件时该项跳过。可设置 `PLAYWRIGHT_CHANNEL=msedge` 使用已安装的 Edge。本轮 8 项浏览器流程通过，包含真实 CSV 桥和 TraceRAG 检测参数检查；合成审核不计作研究标注。
+`TRACERAG_TEST_PYTHON` 运行 TraceRAG 服务，`TRACERAG_TEST_RCA_PYTHON` 运行独立 RCA；后者未设置时沿用服务 Python，该环境必须具备 RCA 依赖。未配置测量文件时该项跳过。可设置 `PLAYWRIGHT_CHANNEL=msedge` 使用已安装的 Edge。本轮 9 项浏览器流程通过，包含真实 CSV 桥和 TraceRAG 检测参数检查；合成审核不计作研究标注。
 
-本轮真实 CSV 经 BARO、检索和离线工单生成，取得 6 条证据、8 处引用，独立来源审计通过。详细后端、干净环境和 GitHub 交付结果见 [第 10 阶段总验收](docs/steps/10-stage-review.md)。工程验收不代表根因准确率提升。
+本轮真实 CSV 经 BARO、检索和离线工单生成，取得 6 条证据、8 处引用，独立来源审计通过。详细后端、干净环境和 GitHub 交付结果见 第 10 阶段总验收。工程验收不代表根因准确率提升。
 
 ## 代码入口
 
@@ -190,7 +192,7 @@ web/                             Vue 前端
 docs/steps/                      分阶段实施记录和限制
 ```
 
-`src/api.py` 只保留现行证据包、工单和配置接口，默认绑定 `127.0.0.1:8000`；网页仍由 `src/operations_console.py` 提供。旧 Streamlit、比赛入口、模型适配及竞赛预处理脚本已清理。完整改造进度见 [ROADMAP](docs/ROADMAP.md)，本次范围与核验见 [Cloud 审计和清理记录](docs/steps/10g-cloud-audit-and-cleanup.md)。
+`src/api.py` 只保留现行证据包、工单和配置接口，默认绑定 `127.0.0.1:8000`；网页仍由 `src/operations_console.py` 提供。旧 Streamlit、比赛入口、模型适配及竞赛预处理脚本已清理。完整改造进度见 ROADMAP，本次范围与核验见 Cloud 审计和清理记录。
 
 ## 上游归属与 Citation
 

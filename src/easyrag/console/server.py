@@ -5,8 +5,10 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 import json
 import hashlib
+from ipaddress import ip_address
 import os
 from pathlib import Path
+import re
 import secrets
 import subprocess
 import sys
@@ -200,7 +202,23 @@ async def payload(request, model=None):
         raise HTTPException(422, "JSON 或字段校验失败；请检查类型、范围和额外字段") from None
 
 
-def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None):
+def _normalized_hostname(value):
+    if not isinstance(value, str) or not value or len(value) > 253 or not re.fullmatch(r"[A-Za-z0-9.:-]+", value):
+        raise ValueError("Allowed hosts must be exact hostnames without schemes, ports, or wildcards")
+    try:
+        return str(ip_address(value))
+    except ValueError:
+        if not all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
+                   for label in value.split(".")):
+            raise ValueError("Allowed hosts must be exact hostnames without schemes, ports, or wildcards") from None
+        return value.lower()
+
+
+def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, allowed_hosts=()):
+    if isinstance(allowed_hosts, (str, bytes)) or allowed_hosts is None:
+        raise ValueError("Allowed hosts must be a collection of exact hostnames")
+    hostnames = {"127.0.0.1", "localhost", "::1"}
+    hostnames.update(_normalized_hostname(value) for value in allowed_hosts)
     root = Path(root) if root else Path(__file__).resolve().parents[3]
     config_path = root / "src/configs/easyrag.operations.windows.yaml"
     settings = yaml.safe_load(config_path.read_text(encoding="utf-8"))
@@ -241,10 +259,18 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None):
 
     @app.middleware("http")
     async def local_boundary(request, call_next):
-        host = request.headers.get("host", "")
-        hostname = urlsplit("http://" + host).hostname
-        if hostname not in {"127.0.0.1", "localhost", "::1"}:
-            return JSONResponse({"detail": "仅允许本机访问"}, status_code=403)
+        hosts = request.headers.getlist("host")
+        host = hosts[0] if len(hosts) == 1 else ""
+        hostname = None
+        if re.fullmatch(r"(?:[A-Za-z0-9.-]+|\[[A-Fa-f0-9:.]+\])(?::[0-9]{1,5})?", host):
+            try:
+                authority = urlsplit("http://" + host)
+                hostname = _normalized_hostname(authority.hostname or "")
+                _ = authority.port  # Validate the numeric port range before admitting the Host.
+            except ValueError:
+                hostname = None
+        if hostname not in hostnames:
+            return JSONResponse({"detail": "仅允许本机或显式配置的主机访问"}, status_code=403)
         origin = request.headers.get("origin")
         if origin and origin != f"{request.url.scheme}://{host}":
             return JSONResponse({"detail": "拒绝跨站请求"}, status_code=403)

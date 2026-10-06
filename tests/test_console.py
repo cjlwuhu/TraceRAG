@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import runpy
 import shutil
 import sys
 import tempfile
@@ -15,6 +16,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 import yaml
 import httpx
+import uvicorn
 
 from easyrag.console.server import create_app, SignalOptions
 from easyrag.console.store import write_json, read_json
@@ -28,6 +30,128 @@ from easyrag.domain.work_order import cited_statements, WorkOrderDraft
 from test_signal_bundle import fixture
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+class DeploymentBoundaryTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        settings = yaml.safe_load((ROOT / "src/configs/easyrag.operations.windows.yaml").read_text(encoding="utf-8"))
+        write_json(self.root / "src/configs/easyrag.operations.windows.yaml", settings)
+
+    def application(self, **kwargs):
+        try:
+            return create_app(self.root, **kwargs)
+        except TypeError as exc:
+            self.fail(f"Console must accept explicit exact allowed hosts: {exc}")
+
+    def client(self, **kwargs):
+        return self.enterContext(TestClient(self.application(**kwargs),
+            base_url="https://tracerag.hnustuc.xyz", raise_server_exceptions=False))
+
+    def test_remote_hostname_is_forbidden_by_default(self):
+        # Removing the default local boundary would expose the bootstrap token.
+        response = self.client().get("/api/bootstrap")
+        self.assertEqual(403, response.status_code)
+
+    def test_explicit_exact_hosts_allow_https_same_origin_and_preserve_loopback(self):
+        # Ignoring the allowlist or comparing DNS names case-sensitively breaks deployment.
+        client = self.client(allowed_hosts=["TRACERAG.HNUSTUC.XYZ", "console.example"])
+        for host in ("tracerag.hnustuc.xyz", "TraceRAG.Hnustuc.Xyz", "console.example",
+                     "localhost", "127.0.0.1", "[::1]:8765"):
+            with self.subTest(host=host):
+                response = client.get("/api/bootstrap", headers={"Host": host, "Origin": "https://" + host})
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertTrue(response.json()["token"])
+
+    def test_allowed_host_still_requires_exact_origin_fetch_site_and_write_token(self):
+        # An admitted hostname must not bypass any existing request boundary.
+        client = self.client(allowed_hosts=["tracerag.hnustuc.xyz"])
+        bootstrap = client.get("/api/bootstrap", headers={"Origin": "https://tracerag.hnustuc.xyz"})
+        self.assertEqual(200, bootstrap.status_code, bootstrap.text)
+        boot = bootstrap.json()
+        for headers in (
+            {"Host": "evil.example"},
+            {"Host": "sub.tracerag.hnustuc.xyz"},
+            {"Host": "tracerag.hnustuc.xyz.evil.example"},
+            {"Origin": "https://evil.example"},
+            {"Origin": "http://tracerag.hnustuc.xyz"},
+            {"Origin": "https://tracerag.hnustuc.xyz:443"},
+            {"Sec-Fetch-Site": "cross-site"},
+        ):
+            with self.subTest(headers=headers):
+                self.assertEqual(403, client.get("/api/bootstrap", headers=headers).status_code)
+        body = {"retrieval": boot["retrieval"], "generation": boot["generation"]}
+        for token in (None, "incorrect-token"):
+            headers = {"Origin": "https://tracerag.hnustuc.xyz"}
+            if token is not None:
+                headers["X-Console-Token"] = token
+            with self.subTest(token=token):
+                self.assertEqual(403, client.post("/api/validate-config", json=body, headers=headers).status_code)
+        response = client.post("/api/validate-config", json=body, headers={
+            "Origin": "https://tracerag.hnustuc.xyz", "X-Console-Token": boot["token"]})
+        self.assertEqual(200, response.status_code, response.text)
+
+    def test_malformed_or_ambiguous_host_is_forbidden_without_server_error(self):
+        # Loose URL parsing must not admit userinfo/paths, and bad brackets must not raise 500.
+        client = self.client()
+        for host in ("[", "[::1", "localhost:invalid", "localhost:99999", "localhost:",
+                     "evil.example@localhost", "localhost/path", "localhost?x=1", "localhost#fragment",
+                     "localhost\n", "localhost\t"):
+            with self.subTest(host=host):
+                response = client.get("/api/bootstrap", headers={"Host": host})
+                self.assertEqual(403, response.status_code, response.text[:120])
+        response = client.get("/api/bootstrap", headers=[("Host", "localhost"), ("Host", "evil.example")])
+        self.assertEqual(403, response.status_code)
+
+    def test_allowlist_rejects_wildcards_and_invalid_hostname_configuration(self):
+        # Broad patterns or URL-shaped configuration must fail before serving requests.
+        for host in ("*", "*.hnustuc.xyz", "", "https://tracerag.hnustuc.xyz", "tracerag.hnustuc.xyz:443",
+                     "[::1]", "example/path", "space host", "host\n", "-bad.example", "bad-.example",
+                     "bad..example", ".example", "example.", "a" * 64 + ".example", None, 123):
+            with self.subTest(host=host), self.assertRaises(ValueError):
+                self.application(allowed_hosts=[host])
+        with self.assertRaises(ValueError):
+            self.application(allowed_hosts="tracerag.hnustuc.xyz")
+
+    def test_cli_repeated_allowed_host_values_reach_real_application(self):
+        # Dropping append semantics or failing to forward the parsed list blocks the second host.
+        responses = []
+        def serve(app, **kwargs):
+            with TestClient(app, base_url="https://tracerag.hnustuc.xyz") as client:
+                for host in ("tracerag.hnustuc.xyz", "console.example"):
+                    responses.append(client.get("/api/bootstrap", headers={
+                        "Host": host, "Origin": "https://" + host}).status_code)
+        arguments = [str(ROOT / "src/operations_console.py"), "--allowed-host", "tracerag.hnustuc.xyz",
+                     "--allowed-host", "console.example"]
+        with patch.object(sys, "argv", arguments), patch("uvicorn.run", serve), \
+                patch("easyrag.console.server.create_app", lambda **kwargs: self.application(**kwargs)):
+            try:
+                runpy.run_path(arguments[0], run_name="__main__")
+            except SystemExit as exc:
+                self.assertEqual(0, exc.code, "CLI must accept repeated --allowed-host arguments")
+        self.assertEqual([200, 200], responses)
+
+    def test_cli_trusts_forwarded_https_only_from_loopback(self):
+        # A broad environment setting must not let a remote peer forge a same-origin HTTPS request.
+        responses = []
+        def serve(app, **kwargs):
+            config = uvicorn.Config(app, **kwargs)
+            config.load()
+            async def request_from_peer(scope, receive, send):
+                scope["client"] = (peer, 54321)
+                await config.loaded_app(scope, receive, send)
+            for peer in ("127.0.0.1", "203.0.113.9"):
+                with TestClient(request_from_peer, base_url="http://tracerag.hnustuc.xyz") as client:
+                    responses.append(client.get("/api/bootstrap", headers={
+                        "X-Forwarded-Proto": "https", "Origin": "https://tracerag.hnustuc.xyz"}).status_code)
+        arguments = [str(ROOT / "src/operations_console.py"), "--allowed-host", "tracerag.hnustuc.xyz"]
+        with patch.object(sys, "argv", arguments), patch.dict(os.environ, {"FORWARDED_ALLOW_IPS": "*"}), \
+                patch("uvicorn.run", serve), \
+                patch("easyrag.console.server.create_app", lambda **kwargs: self.application(**kwargs)):
+            runpy.run_path(arguments[0], run_name="__main__")
+        self.assertEqual([200, 403], responses)
 
 
 class ConsoleTests(unittest.TestCase):

@@ -1,0 +1,27 @@
+[Unit]
+Description=TraceRAG operations research console
+After=network.target
+
+[Service]
+Type=simple
+User=tracerag
+Group=tracerag
+WorkingDirectory=/opt/tracerag/current
+Environment=PYTHONPATH=/opt/tracerag/current/src
+Environment=PYTHONIOENCODING=utf-8
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=TMPDIR=/var/lib/tracerag/tmp
+EnvironmentFile=-/etc/tracerag/environment
+ExecStart=/opt/tracerag/venv/bin/python /opt/tracerag/current/src/operations_console.py --port 8765 --allowed-host tracerag.hnustuc.xyz --rca-root /opt/rca/current --rca-python /opt/rca/venv/bin/python
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=90
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tracerag
+
+[Install]
+WantedBy=multi-user.target
