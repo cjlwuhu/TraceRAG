@@ -9,7 +9,7 @@
 - [x] 保留现行 BM25、切分、证据/工单/控制台接口与研究工具；移除旧比赛、Streamlit、GPU/OCR 等独立分支及旧宣传资产。
 - [x] 将独立 API 简化为现行 Operations 接口，保留对应 HTTP 回归；精简无用配置与依赖。
 - [x] 验证完整后端、前端构建、浏览器和原 CSV 五段链路，并独立复核清理范围与发布内容。
-- [ ] 向 `cjlwuhu/TraceRAG` 发布经过验证的源码与教程，核对远端提交。
+- [x] 向 `cjlwuhu/TraceRAG` 发布经过验证的源码与教程，核对远端提交。
 
 本机时序原始数据、知识版本、工单/实验记录、凭据和依赖环境不删除、不进入源码发布。删除的旧源码与资产先以精确文件清单备份在本机 `outputs`；保留上游许可证与论文引用。EasyRAG 上游 Git 历史及 TraceRAG 现有未提交文件不被重置。
 
@@ -46,4 +46,6 @@
 - 发布副本使用原始 `adservice_cpu/1/data.csv` 与独立 RCA 环境，五段链路状态 **complete**，6 条最终证据、9 处引用通过独立结构/来源审计；日志 `outputs/cleanup-pipeline-check.log`。未调用云模型。
 - 独立复核确认共用查询、HTTP 接口和命令约束回归通过。命令校验误拦/漏拦已修复；尚无未关闭问题。引用审计仍不证明生成陈述或 RCA 根因正确。
 
-GitHub 发布结果在远端提交核验后记录。
+源码与教程已推送到私有仓库 [cjlwuhu/TraceRAG](https://github.com/cjlwuhu/TraceRAG) 的 `main`，源码提交为 [78f31ad350714beaf431d3fdc88e69174dd586b1](https://github.com/cjlwuhu/TraceRAG/commit/78f31ad350714beaf431d3fdc88e69174dd586b1)。GitHub API 返回的远端 `main` 与本机提交完全一致；没有强制推送。此完成记录随后作为独立文档提交发布。
+
+本次仅发布 TraceRAG/EasyRAG 源码，独立 RCA 工程仍按 README 的独立入口使用。本机 EasyRAG 的上游 origin 和 TraceRAG 原工作目录中的未提交文件保持原状；发布副本为 `outputs/cleanup-publish-20261006/`。新代码需重新启动 EasyRAG 控制台后加载。
