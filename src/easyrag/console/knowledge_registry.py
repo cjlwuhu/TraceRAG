@@ -59,31 +59,41 @@ class KnowledgeRegistry:
         folder = self.version_path(version)
         info = json.loads((folder / "version.json").read_text(encoding="utf-8"))
         if digest(folder / "manifest.jsonl") != info["manifest_sha256"]: raise ValueError("knowledge hash mismatch")
+        if (folder / "manifest.jsonl").stat().st_size == 0: return []
         return load_manifest(folder / "manifest.jsonl")
 
     def publish(self, manifests, *, reason):
         with LOCK:
-            known, sources = {}, []
+            documents, sources = [], []
             for manifest in manifests:
                 manifest = Path(manifest)
                 sources.append({"path": str(manifest.resolve()), "sha256": digest(manifest)})
-                for document in load_manifest(manifest):
-                    if document.knowledge_type not in {"runbook", "case"}:
-                        raise ValueError("long-lived knowledge only admits runbooks and verified historical cases")
-                    if document.knowledge_id in known and known[document.knowledge_id].to_dict() != document.to_dict():
-                        raise ValueError("conflicting knowledge ID")
-                    known[document.knowledge_id] = document
+                documents.extend(load_manifest(manifest))
+            return self.publish_documents(documents, reason=reason, sources=sources)
+
+    def publish_documents(self, documents, *, reason, sources, excluded_knowledge_ids=()):
+        with LOCK:
+            known = {}
+            for document in documents:
+                document.validate()
+                if document.knowledge_type not in {"runbook", "case"}:
+                    raise ValueError("long-lived knowledge only admits runbooks and verified historical cases")
+                if document.knowledge_id in known and known[document.knowledge_id].to_dict() != document.to_dict():
+                    raise ValueError("conflicting knowledge ID")
+                known[document.knowledge_id] = document
             documents = sorted(known.values(), key=lambda d: d.knowledge_id)
             content_hash = hashlib.sha256(encode([d.to_dict() for d in documents])).hexdigest()
             version = "kb-" + content_hash[:32]
             folder = self.version_path(version)
             if not folder.exists():
                 folder.mkdir(parents=True)
-                write_manifest(documents, folder / "manifest.jsonl")
+                if documents: write_manifest(documents, folder / "manifest.jsonl")
+                else: (folder / "manifest.jsonl").write_bytes(b"")
                 info = {"version": version, "mode": "registered", "created_at_utc": datetime.now(timezone.utc).isoformat(),
                     "reason": reason, "counts": dict(Counter(d.knowledge_type for d in documents)),
                     "systems": sorted({d.metadata["system"] for d in documents if d.metadata.get("system")}),
                     "manifest_sha256": digest(folder / "manifest.jsonl"), "sources": sources}
+                if excluded_knowledge_ids: info["excluded_knowledge_ids"] = list(excluded_knowledge_ids)
                 save(folder / "version.json", info)
             else:
                 self.documents(version)  # never activate a modified on-disk version

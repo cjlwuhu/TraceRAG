@@ -12,18 +12,18 @@ import re
 import secrets
 import subprocess
 import sys
-import threading
 from typing import Literal, Optional
 from urllib.parse import urlsplit
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import Field, StrictBool, ValidationError, confloat, conint, constr
 import yaml
 
 from easyrag.console.store import Catalog, locate, now, read_json, write_json
+from easyrag.console.lifecycle import Lifecycle, LOCK, locked_call, serialized
 from easyrag.console.settings import ServiceSettings, SettingsRequest
 from easyrag.console.diagnostics import ConsoleProblem, Journal, describe_error, rca_problem
 from easyrag.domain.experiment import ExperimentConfig, StrictModel
@@ -121,7 +121,7 @@ class JobQueue:
         self.catalog = catalog
         self.journal = journal
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ops-console")
-        self.lock = threading.Lock()
+        self.lock = LOCK
         self.pending = 0
 
     def recover(self):
@@ -156,19 +156,23 @@ class JobQueue:
             self.journal.add("info", "任务已提交", job_id=ident, phase="排队等待")
 
         def execute():
+            terminal = {}
             try:
                 self.update(ident, status="running", phase="准备输入")
                 result = worker(ident)
-                self.update(ident, status="completed", phase="完成", result=result)
+                terminal = {"status": "completed", "phase": "完成", "result": result}
             except Exception as exc:
                 problem = describe_error(exc)
                 problem["phase"] = self.get(ident).get("phase")
-                self.update(ident, status="failed", phase="运行失败", error_type=type(exc).__name__,
-                    error=problem["message"], problem=problem,
-                    generation_run_id=getattr(exc, "generation_run_id", None))
+                terminal = {"status": "failed", "phase": "运行失败", "error_type": type(exc).__name__,
+                    "error": problem["message"], "problem": problem,
+                    "generation_run_id": getattr(exc, "generation_run_id", None)}
             finally:
                 with self.lock:
-                    self.pending -= 1
+                    try:
+                        self.update(ident, **terminal)
+                    finally:
+                        self.pending -= 1
         self.pool.submit(execute)
         return self.get(ident)
 
@@ -228,6 +232,7 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
     journal = Journal(catalog.state / "logs.json")
     services = ServiceSettings(catalog.state, settings, allow_cloud=allow_cloud)
     queue = JobQueue(catalog, journal)
+    lifecycle = Lifecycle(catalog, queue)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -256,6 +261,7 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
                   docs_url=None, redoc_url=None, openapi_url=None)
     app.state.catalog, app.state.queue = catalog, queue
     app.state.services = services
+    app.state.lifecycle = lifecycle
 
     @app.middleware("http")
     async def local_boundary(request, call_next):
@@ -358,10 +364,28 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
         return {"ok": True, "service": data.service}
 
     @app.get("/api/events")
+    @serialized
     def events():
         return catalog.events()
 
+    @app.delete("/api/events/{ident}")
+    def delete_event(ident: str):
+        return lifecycle.delete_event(ident)
+
+    @app.delete("/api/orders/{ident}")
+    def delete_order(ident: str):
+        return lifecycle.delete_order(ident)
+
+    @app.get("/api/knowledge/cases")
+    def cases():
+        return lifecycle.cases()
+
+    @app.delete("/api/knowledge/cases/{ident:path}")
+    def delete_case(ident: str):
+        return lifecycle.delete_case(ident)
+
     @app.get("/api/knowledge")
+    @serialized
     def knowledge():
         info = catalog.knowledge.description()
         # Public UI gets version/counts, not server filesystem source paths.
@@ -377,6 +401,7 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
         return await asyncio.to_thread(admit_case, catalog, await payload(request))
 
     @app.get("/api/events/{ident}/evidence")
+    @serialized
     def event_evidence(ident: str):
         from easyrag.console.research import observations
         return {"items": [d.to_dict() for d in observations(catalog, ident)]}
@@ -386,18 +411,38 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
         from easyrag.console.research import attach
         return await asyncio.to_thread(attach, catalog, ident, await payload(request))
 
-    @app.get("/api/events/{ident}/assets/{sha}")
-    def image_asset(ident: str, sha: str):
-        from easyrag.console.research import observations, asset_path
+    def image_response(sha):
+        from easyrag.console.research import asset_path
         from PIL import Image
-        found = [d for d in observations(catalog, ident) if d.knowledge_type == "image" and d.metadata["asset_sha256"] == sha]
-        if not found: raise HTTPException(404, "该事件没有这张图像")
         path = asset_path(catalog.root, sha)
         with Image.open(path) as im:
             fmt = im.format
             if fmt not in {"PNG", "JPEG"}: raise HTTPException(422, "仅预览 PNG/JPEG 图像")
             im.verify()
-        return FileResponse(path, media_type="image/png" if fmt == "PNG" else "image/jpeg")
+        return Response(path.read_bytes(), media_type="image/png" if fmt == "PNG" else "image/jpeg")
+
+    @app.get("/api/events/{ident}/assets/{sha}")
+    @serialized
+    def image_asset(ident: str, sha: str):
+        from easyrag.console.research import observations
+        if not re.fullmatch(r"[a-f0-9]{64}", sha): raise ValueError("invalid asset hash")
+        found = [d for d in observations(catalog, ident) if d.knowledge_type == "image" and d.metadata["asset_sha256"] == sha]
+        if not found: raise HTTPException(404, "该事件没有这张图像")
+        return image_response(sha)
+
+    @app.get("/api/orders/{ident}/assets/{sha}")
+    @serialized
+    def order_image_asset(ident: str, sha: str):
+        if not re.fullmatch(r"[a-f0-9]{64}", sha): raise ValueError("invalid asset hash")
+        folder, data = order_data(ident)
+        audit_work_order(folder)
+        record = WorkOrderRecord.parse_obj(data)
+        pack = read_json(folder / "evidence-pack.json")
+        recorded = {e.evidence_id for e in record.evidence if e.type == "image" and e.metadata.get("asset_sha256") == sha}
+        found = any(item["evidence"]["evidence_id"] in recorded and item["evidence"]["type"] == "image"
+                    and item["evidence"]["metadata"].get("asset_sha256") == sha for item in pack["pack"]["items"])
+        if not found: raise HTTPException(404, "该工单没有这张图像")
+        return image_response(sha)
 
     @app.post("/api/orders/{ident}/annotations", status_code=201)
     async def annotate_relevance(ident: str, request: Request):
@@ -405,6 +450,7 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
         return await asyncio.to_thread(annotate, catalog, ident, await payload(request))
 
     @app.get("/api/events/{ident}")
+    @serialized
     def event(ident: str):
         incident, _ = catalog.event(ident)
         return incident
@@ -412,7 +458,7 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
     @app.post("/api/events", status_code=201)
     async def import_event(request: Request):
         data = await payload(request)
-        return await asyncio.to_thread(catalog.import_bundle, data)
+        return await asyncio.to_thread(locked_call, catalog.import_bundle, data)
 
     @app.post("/api/telemetry", status_code=202)
     async def telemetry(request: Request):
@@ -452,12 +498,16 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
                 return {"rag_ready": False, "detection": bundle["detection"], "analysis": bundle["analysis"], **extra}
             queue.update(ident, phase="导入已完成事件")
             return {"rag_ready": True, **catalog.import_bundle(bundle), **extra}
-        return queue.submit("telemetry", {"options": data.options.dict(),
+        return await asyncio.to_thread(queue.submit, "telemetry", {"options": data.options.dict(),
                             "csv_sha256": hashlib.sha256(csv_bytes).hexdigest()}, work)
 
     @app.post("/api/runs", status_code=202)
     async def run(request: Request):
         data = await payload(request, RunRequest)
+        return await asyncio.to_thread(submit_run, data)
+
+    @serialized
+    def submit_run(data):
         incident, corpus, corpus_info = catalog.query_corpus(data.event_id, mode=data.corpus_mode, system=data.knowledge_system)
         cloud_requested = (data.retrieval.embedding.enabled or data.retrieval.reranker.enabled or
                            (data.generation.enabled and data.generation.mode == "cloud"))
@@ -476,11 +526,13 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
         return queue.submit("rag", {**data.dict(), "corpus": corpus_info}, lambda ident: asyncio.run(pipeline(ident)))
 
     @app.get("/api/jobs")
+    @serialized
     def jobs():
         items = [read_json(path) for path in catalog.jobs.glob("job-*/job.json")]
         return sorted(items, key=lambda item: item.get("created_at_utc", ""), reverse=True)[:100]
 
     @app.get("/api/jobs/{ident}")
+    @serialized
     def job(ident: str):
         return queue.get(ident)
 
@@ -489,6 +541,7 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
         return folder, read_json(folder / "work-order.json")
 
     @app.get("/api/orders")
+    @serialized
     def orders():
         items = []
         paths = sorted(catalog.orders.glob("gen-*/work-order.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:100]
@@ -505,6 +558,7 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
         return items
 
     @app.get("/api/orders/{ident}")
+    @serialized
     def order(ident: str):
         folder, data = order_data(ident)
         try:
@@ -519,14 +573,20 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
             "revisions": [read_json(p) for p in sorted((catalog.reviews / ident).glob("rev-*/review.json"))]}
 
     @app.get("/api/orders/{ident}/download/{format}")
+    @serialized
     def download(ident: str, format: Literal["json", "md"]):
         folder, _ = order_data(ident)
-        return FileResponse(folder / ("work-order." + format), filename=ident + "." + format,
-                            media_type="application/json" if format == "json" else "text/markdown; charset=utf-8")
+        return Response((folder / ("work-order." + format)).read_bytes(),
+            media_type="application/json" if format == "json" else "text/markdown; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="' + ident + "." + format + '"'})
 
     @app.post("/api/orders/{ident}/reviews", status_code=201)
     async def review(ident: str, request: Request):
         data = await payload(request, ReviewRequest)
+        return await asyncio.to_thread(save_review, ident, data)
+
+    @serialized
+    def save_review(ident, data):
         folder, original = order_data(ident)
         record = WorkOrderRecord.parse_obj(original)
         audit_work_order(folder)  # Hashes, saved prompt, final evidence and Markdown must still agree.
@@ -563,10 +623,13 @@ def create_app(root=None, *, allow_cloud=False, rca_root=None, rca_python=None, 
         return artifact
 
     @app.get("/api/orders/{ident}/reviews/{revision}/download/{format}")
+    @serialized
     def download_review(ident: str, revision: str, format: Literal["json", "md"]):
         order_data(ident)
         folder = locate(catalog.reviews / ident, revision, "rev")
-        return FileResponse(folder / ("review." + format), filename=revision + "." + format)
+        return Response((folder / ("review." + format)).read_bytes(),
+            media_type="application/json" if format == "json" else "text/markdown; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="' + revision + "." + format + '"'})
 
     @app.exception_handler(CloudModelError)
     async def cloud_error(request, exc):

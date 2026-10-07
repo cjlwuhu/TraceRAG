@@ -73,7 +73,10 @@ const parentRevision = ref(null),
   activeEvidence = ref("");
 let timer,
   stopped = false,
-  initialized = false;
+  initialized = false,
+  lifecycleEpoch = 0;
+const deletedEvents = new Set(),
+  deletedOrders = new Set();
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const labels = {
   doc: "运维手册",
@@ -90,6 +93,7 @@ const currentJob = computed(() =>
 const pending = computed(() =>
   jobs.value.filter((j) => ["queued", "running"].includes(j.status)),
 );
+const deletionBlocked = computed(() => busy.value || pending.value.length > 0);
 const evidence = computed(() => result.value?.pack?.pack.items || []);
 const claims = computed(() => {
   if (!draft.value) return [];
@@ -101,7 +105,7 @@ const claims = computed(() => {
       extra: x.verification,
     })),
     ...draft.value.verification_steps.map((x, i) => ({
-      title: `验证 ${i + 1}`,
+      title: `排查措施 ${i + 1} · 未执行`,
       claim: x,
     })),
     ...draft.value.proposed_actions.map((x, i) => ({
@@ -121,32 +125,30 @@ const countTypes = computed(() =>
 );
 const short = (value) => (value ? value.slice(0, 16) + "…" : "—");
 const assetUrl = (item) => {
+  const orderId = result.value?.record.generation_run_id;
+  if (orderId)
+    return `/api/orders/${orderId}/assets/${item.metadata.asset_sha256}`;
   const event = events.value.find(
     (e) => e.incident_id === item.metadata.source_incident_id,
   );
-  return event
-    ? `/api/events/${event.id}/assets/${item.metadata.asset_sha256}`
-    : null;
+  if (event)
+    return `/api/events/${event.id}/assets/${item.metadata.asset_sha256}`;
+  return null;
 };
 const time = (value) =>
   value ? value.replace("T", " ").slice(0, 19) + " UTC" : "—";
 
-async function api(path, body) {
+async function api(path, body, method = body === undefined ? "GET" : "POST") {
   let response;
   try {
-    response = await fetch(
-      "/api" + path,
-      body === undefined
-        ? {}
-        : {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Console-Token": boot.value.token,
-            },
-            body: JSON.stringify(body),
-          },
-    );
+    const options = { method, headers: {} };
+    if (!["GET", "HEAD", "OPTIONS"].includes(method))
+      options.headers["X-Console-Token"] = boot.value.token;
+    if (body !== undefined) {
+      options.headers["Content-Type"] = "application/json";
+      options.body = JSON.stringify(body);
+    }
+    response = await fetch("/api" + path, options);
   } catch {
     const e = new Error("无法连接本地服务");
     e.problem = {
@@ -242,16 +244,109 @@ async function refresh() {
     api("/logs"),
     api("/knowledge"),
   ]);
-  events.value = e.items;
+  events.value = e.items.filter((item) => !deletedEvents.has(item.id));
   jobs.value = j;
-  orders.value = o;
+  orders.value = o.filter((item) => !deletedOrders.has(item.id));
   logs.value = l;
   knowledge.value = k;
+  if (
+    eventId.value &&
+    !events.value.some((item) => item.id === eventId.value)
+  ) {
+    eventId.value = "";
+    incident.value = null;
+  }
+  if (
+    result.value &&
+    !orders.value.some(
+      (item) => item.id === result.value.record.generation_run_id,
+    )
+  )
+    clearOrderState();
+  selectedOrders.value = selectedOrders.value.filter((id) =>
+    orders.value.some((item) => item.id === id),
+  );
+  if (
+    comparisons.value.some(
+      (item) =>
+        !orders.value.some(
+          (order) => order.id === item.record.generation_run_id,
+        ),
+    )
+  )
+    comparisons.value = [];
+  if (
+    watchingJob.value &&
+    !jobs.value.some((item) => item.id === watchingJob.value)
+  )
+    clearWatchingJob();
 }
-async function chooseEvent() {
-  incident.value = eventId.value ? await api("/events/" + eventId.value) : null;
+function clearWatchingJob() {
+  watchingJob.value = "";
+  sessionStorage.removeItem("ops-job");
+}
+function clearOrderState() {
   result.value = null;
   draft.value = null;
+  ratings.value = {};
+  reviewer.value = "";
+  reviewNotes.value = "";
+  decision.value = "needs_revision";
+  parentRevision.value = null;
+  savedRevision.value = null;
+  activeEvidence.value = "";
+}
+const reclaimedBytes = (value) => `${Number(value || 0).toLocaleString()} 字节`;
+async function deleteEvent() {
+  const id = eventId.value;
+  if (!id || deletionBlocked.value) return;
+  if (
+    !window.confirm(
+      "删除当前事件？此操作不可撤回。将清理独占的上传副本及观测附件；共享引用和已生成工单会保留，原始外部文件不受影响。",
+    )
+  )
+    return;
+  await safely(async () => {
+    const deleted = await api(`/events/${id}`, undefined, "DELETE");
+    lifecycleEpoch += 1;
+    deletedEvents.add(id);
+    eventId.value = "";
+    incident.value = null;
+    clearOrderState();
+    clearWatchingJob();
+    await refresh();
+    notice.value = `已删除事件，释放 ${reclaimedBytes(deleted.reclaimed_bytes)}。已生成工单与共享引用保留。`;
+  });
+}
+async function deleteOrder() {
+  const id = result.value?.record.generation_run_id;
+  if (!id || deletionBlocked.value) return;
+  if (
+    !window.confirm(
+      "删除当前工单？此操作不可撤回。将删除该工单原稿、人工修订及标注，并清理其独占产物；其他工单、事件与历史知识快照会保留。",
+    )
+  )
+    return;
+  await safely(async () => {
+    const deleted = await api(`/orders/${id}`, undefined, "DELETE");
+    lifecycleEpoch += 1;
+    deletedOrders.add(id);
+    clearOrderState();
+    clearWatchingJob();
+    selectedOrders.value = selectedOrders.value.filter((value) => value !== id);
+    comparisons.value = [];
+    await refresh();
+    notice.value = `已删除工单及其修订，释放 ${reclaimedBytes(deleted.reclaimed_bytes)}。`;
+  });
+}
+async function chooseEvent() {
+  const id = eventId.value,
+    epoch = lifecycleEpoch;
+  clearOrderState();
+  incident.value = null;
+  if (!id || deletedEvents.has(id)) return;
+  const value = await api("/events/" + id);
+  if (epoch === lifecycleEpoch && eventId.value === id) incident.value = value;
 }
 function syncAdvanced() {
   advanced.value = JSON.stringify(
@@ -323,7 +418,11 @@ async function submitRun() {
   });
 }
 async function loadOrder(id) {
-  result.value = await api("/orders/" + id);
+  if (!id || deletedOrders.has(id)) return;
+  const epoch = lifecycleEpoch;
+  const value = await api("/orders/" + id);
+  if (epoch !== lifecycleEpoch || deletedOrders.has(id)) return;
+  result.value = value;
   draft.value =
     result.value.compatible && result.value.record.draft
       ? clone(result.value.record.draft)
@@ -355,16 +454,27 @@ async function poll() {
       });
     }
     const job = currentJob.value;
+    if (watchingJob.value && !job) clearWatchingJob();
     if (job && !["queued", "running"].includes(job.status)) {
+      clearWatchingJob();
       if (job.status === "completed") {
         await refresh();
-        if (job.result?.generation_run_id)
+        if (
+          job.result?.generation_run_id &&
+          !deletedOrders.has(job.result.generation_run_id)
+        )
           await loadOrder(job.result.generation_run_id);
-        else if (job.result?.event_id) {
+        else if (
+          job.result?.event_id &&
+          !deletedEvents.has(job.result.event_id) &&
+          events.value.some((item) => item.id === job.result.event_id)
+        ) {
           eventId.value = job.result.event_id;
           await chooseEvent();
           notice.value = "时序处理完成，事件已导入。";
-          const merged = job.result.csv_normalization?.dropped_column_indices_zero_based?.length || 0;
+          const merged =
+            job.result.csv_normalization?.dropped_column_indices_zero_based
+              ?.length || 0;
           if (merged)
             notice.value += ` 已合并 ${merged} 列一致的 time，保留 ${job.result.csv_normalization.normalized_columns} 列；原始 CSV 和处理记录已保留。`;
           showUpload.value = false;
@@ -377,12 +487,10 @@ async function poll() {
           problem: job.problem,
           serverLogged: true,
         });
-      watchingJob.value = "";
-      sessionStorage.removeItem("ops-job");
     }
   } catch (e) {
     if (!connectionLost.value) report(e);
-    connectionLost.value = true;
+    if (e.problem?.code === "connection") connectionLost.value = true;
   } finally {
     if (!stopped) timer = setTimeout(poll, pending.value.length ? 1800 : 6000);
   }
@@ -421,6 +529,7 @@ function claimEdited(i) {
   savedRevision.value = null;
 }
 async function cite(id) {
+  if (section.value === "workspace") section.value = "orders";
   activeEvidence.value = id;
   await nextTick();
   document
@@ -626,6 +735,8 @@ onUnmounted(() => {
           :knowledge="knowledge"
           :event-id="eventId"
           :incident="incident"
+          :pending-jobs="pending.length"
+          :parent-busy="busy"
           @refresh="safely(refresh)"
           @notice="notice = $event"
           @error="report"
@@ -645,6 +756,13 @@ onUnmounted(() => {
                 </option>
               </select>
             </div>
+            <button
+              class="button danger-button"
+              @click="deleteEvent"
+              :disabled="!eventId || deletionBlocked"
+            >
+              删除事件
+            </button>
             <label class="button file-button"
               >导入信号包<input
                 type="file"
@@ -659,6 +777,9 @@ onUnmounted(() => {
               {{ showUpload ? "收起 CSV" : "上传 CSV" }}
             </button>
           </section>
+          <p v-if="pending.length" class="hint lifecycle-hint">
+            任务排队或运行时暂停删除；完成后可继续。
+          </p>
           <div class="corpus-choice">
             <label v-if="!eventId"
               >文档范围
@@ -689,7 +810,10 @@ onUnmounted(() => {
               <h2>导入时序</h2>
               <span>CSV · 最大 6 MB</span>
             </div>
-            <p>time 列为 Unix 秒，其他列为数值指标。逐行一致的重复 time 列会合并并保留处理记录；重复指标或冲突时间列会报错。</p>
+            <p>
+              time 列为 Unix 秒，其他列为数值指标。逐行一致的重复 time
+              列会合并并保留处理记录；重复指标或冲突时间列会报错。
+            </p>
             <div class="upload-grid">
               <label
                 >时序 CSV<input
@@ -720,17 +844,33 @@ onUnmounted(() => {
                   type="number"
                   v-model.number="signal.trigger_timestamp" /></label
               ><label v-if="signal.detection_enabled"
-                >预热点数<input type="number" v-model.number="signal.warmup_points"
-                  min="20" max="100000" step="1" /></label
+                >预热点数<input
+                  type="number"
+                  v-model.number="signal.warmup_points"
+                  min="20"
+                  max="100000"
+                  step="1" /></label
               ><label v-if="signal.detection_enabled"
-                >连续确认点数<input type="number" v-model.number="signal.consecutive_points"
-                  min="1" max="10000" step="1" /></label
+                >连续确认点数<input
+                  type="number"
+                  v-model.number="signal.consecutive_points"
+                  min="1"
+                  max="10000"
+                  step="1" /></label
               ><label v-if="signal.detection_enabled"
-                >最少异常指标数<input type="number" v-model.number="signal.minimum_metrics"
-                  min="1" max="100000" step="1" /></label
+                >最少异常指标数<input
+                  type="number"
+                  v-model.number="signal.minimum_metrics"
+                  min="1"
+                  max="100000"
+                  step="1" /></label
               ><label v-if="signal.detection_enabled"
-                >采样间隔上限（秒）<input type="number" v-model.number="signal.max_gap_seconds"
-                  min="1" max="86400" step="1" /></label
+                >采样间隔上限（秒）<input
+                  type="number"
+                  v-model.number="signal.max_gap_seconds"
+                  min="1"
+                  max="86400"
+                  step="1" /></label
               ><label class="toggle"
                 ><input
                   type="checkbox"
@@ -976,6 +1116,41 @@ onUnmounted(() => {
                     >
                   </p>
                 </details>
+                <section v-if="draft" class="panel troubleshooting">
+                  <div class="section-title">
+                    <h2>排查措施</h2>
+                    <button class="text-button" @click="section = 'orders'">
+                      编辑措施与复核 →
+                    </button>
+                  </div>
+                  <p class="hint">
+                    以下措施尚未执行；请依据引用检查对象、窗口及判断依据，并在工单中复核。
+                  </p>
+                  <article
+                    v-for="(step, i) in draft.verification_steps"
+                    :key="i"
+                    class="troubleshooting-step"
+                  >
+                    <h3>
+                      排查措施 {{ i + 1 }} <span class="tag">未执行</span>
+                    </h3>
+                    <p>{{ step.text }}</p>
+                    <button
+                      v-for="c in step.citations"
+                      :key="c.evidence_id"
+                      class="citation"
+                      @click="cite(c.evidence_id)"
+                    >
+                      <span>{{ short(c.evidence_id) }} ↗</span>“{{ c.quote }}”
+                    </button>
+                  </article>
+                  <p
+                    v-if="!draft.verification_steps.length"
+                    class="small-empty"
+                  >
+                    本次草稿尚无排查措施，请在复核时补充可核查信息。
+                  </p>
+                </section>
                 <section class="panel">
                   <div class="section-title">
                     <h2>检索证据</h2>
@@ -1064,7 +1239,17 @@ onUnmounted(() => {
                 >原稿 JSON ↓</a
               ></template
             >
+            <button
+              class="button danger-button"
+              @click="deleteOrder"
+              :disabled="!result || deletionBlocked"
+            >
+              删除工单
+            </button>
           </section>
+          <p v-if="pending.length" class="hint lifecycle-hint">
+            任务排队或运行时暂停删除；完成后可继续。
+          </p>
           <div v-if="!result" class="panel empty-result">
             <div class="empty-glyph">[ ↗ ]</div>
             <h2>选择工单</h2>
@@ -1274,11 +1459,21 @@ onUnmounted(() => {
                     <td>
                       {{ j.problem?.message || j.phase
                       }}<small v-if="j.problem">{{ j.problem.hint }}</small
-                      ><small v-if="j.result?.csv_normalization?.dropped_column_indices_zero_based?.length">
-                        时间列合并 {{ j.result.csv_normalization.dropped_column_indices_zero_based.length }} 列 ·
-                        {{ j.result.csv_normalization.raw_rows }} 行 ·
-                        {{ j.result.csv_normalization.original_columns }} → {{ j.result.csv_normalization.normalized_columns }} 列
-                      </small
+                      ><small
+                        v-if="
+                          j.result?.csv_normalization
+                            ?.dropped_column_indices_zero_based?.length
+                        "
+                      >
+                        时间列合并
+                        {{
+                          j.result.csv_normalization
+                            .dropped_column_indices_zero_based.length
+                        }}
+                        列 · {{ j.result.csv_normalization.raw_rows }} 行 ·
+                        {{ j.result.csv_normalization.original_columns }} →
+                        {{ j.result.csv_normalization.normalized_columns }}
+                        列 </small
                       ><button
                         v-if="j.result?.generation_run_id"
                         class="text-button"

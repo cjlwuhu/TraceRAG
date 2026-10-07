@@ -63,6 +63,85 @@ class WorkOrderTests(unittest.TestCase):
         self.assertEqual("passed", parsed.provenance["citation_integrity"])
         self.assertNotIn("HistoricalCase", parsed.draft.dict())
 
+    def test_extractive_checks_name_each_metric_window_and_comparison_criterion(self):
+        runner = OperationsRunner([
+            node("metric", "latency-check", "checkoutservice_latency 当前窗口时延均值上升；只作为观测。",
+                 source_incident_id=self.incident["incident_id"], service="checkoutservice",
+                 metric="checkoutservice_latency", window_start_utc="2023-08-21T07:25:00Z",
+                 window_end_utc="2023-08-21T07:34:00Z"),
+            node("metric", "disk-check", "redis_diskio 当前窗口磁盘统计变化；只作为观测。",
+                 source_incident_id=self.incident["incident_id"], service="redis", metric="redis_diskio",
+                 window_start_utc="2023-08-21T07:26:00Z", window_end_utc="2023-08-21T07:33:00Z"),
+        ], tokenizer=jieba.Tokenizer(), stopwords=set())
+        source = asyncio.run(runner.run("checkoutservice_latency redis_diskio 如何排查", incident=self.incident))
+        result = asyncio.run(self.generator().run(source, overrides={"include_rca_candidates": False}))
+        parsed = WorkOrderRecord.parse_obj(result)
+        self.assertEqual(2, len(parsed.draft.verification_steps))
+        by_id = {e.evidence_id: e for e in parsed.evidence}
+        texts = []
+        for step in parsed.draft.verification_steps:
+            observation = by_id[step.citations[0].evidence_id]
+            for field in ("service", "metric", "window_start_utc", "window_end_utc"):
+                self.assertIn(observation.metadata[field], step.text)
+            self.assertIn("只读", step.text)
+            self.assertIn("判断依据", step.text)
+            self.assertIn("原始", step.text)
+            self.assertIn("一致", step.text)
+            self.assertIn("待补充", step.text)
+            self.assertEqual(observation.content, step.citations[0].quote)
+            self.assertNotRegex(step.text, r"P95|100ms|异常开始|已确认|已执行")
+            texts.append(step.text)
+        self.assertEqual(2, len(set(texts)))
+        bounded = asyncio.run(self.generator().run(source, overrides={"max_steps": 1}))
+        self.assertEqual(1, len(bounded["draft"]["verification_steps"]))
+        self.assertFalse(parsed.actions_executed)
+        self.assertEqual([], parsed.draft.proposed_actions)
+
+    def test_extractive_runbook_check_names_its_reference_and_keeps_commands_in_quote(self):
+        content = ("checkoutservice 连接池排查：检查连接池等待时间，确认下游服务是否超时。\n"
+                   "原始手册示例：kubectl logs deployment/checkoutservice")
+        runner = OperationsRunner([
+            node("runbook", "pool-manual", content, document_title="checkoutservice 连接池手册"),
+        ], tokenizer=jieba.Tokenizer(), stopwords=set())
+        source = asyncio.run(runner.run("checkoutservice 连接池排查", incident=self.incident))
+        result = asyncio.run(self.generator().run(source))
+        parsed = WorkOrderRecord.parse_obj(result)
+        step = parsed.draft.verification_steps[0]
+        self.assertIn("checkoutservice 连接池手册", step.text)
+        self.assertIn("只读", step.text)
+        self.assertIn("判断依据", step.text)
+        self.assertIn("版本", step.text)
+        self.assertIn("环境", step.text)
+        self.assertIn("待补充", step.text)
+        self.assertEqual(content, step.citations[0].quote)
+        self.assertNotIn("kubectl", step.text)
+        parse_model_draft(parsed.draft.dict(), parsed.evidence, parsed.config)
+
+    def test_extractive_check_marks_missing_metric_identity_instead_of_guessing(self):
+        runner = OperationsRunner([
+            node("metric", "unnamed-window", "checkoutservice 当前窗口观测需要复核。",
+                 source_incident_id=self.incident["incident_id"],
+                 window_start_utc="2023-08-21T07:25:00Z", window_end_utc="2023-08-21T07:34:00Z"),
+        ], tokenizer=jieba.Tokenizer(), stopwords=set())
+        source = asyncio.run(runner.run("checkoutservice 如何排查", incident=self.incident))
+        result = asyncio.run(self.generator().run(source, overrides={"include_rca_candidates": False}))
+        step = result["draft"]["verification_steps"][0]
+        self.assertIn("指标名待补充", step["text"])
+        self.assertIn("服务待补充", step["text"])
+        self.assertIn(step["citations"][0]["evidence_id"], step["text"])
+        self.assertNotIn("fixture:unnamed-window", step["text"])
+        self.assertNotIn("checkoutservice_latency", step["text"])
+        self.assertEqual("checkoutservice 当前窗口观测需要复核。", step["citations"][0]["quote"])
+
+    def test_extractive_rejects_executable_commands_in_copied_metadata(self):
+        runner = OperationsRunner([
+            node("runbook", "untrusted-title", "checkoutservice 连接池排查手册，适用性尚需核对。",
+                 document_title="kubectl logs deployment/checkoutservice"),
+        ], tokenizer=jieba.Tokenizer(), stopwords=set())
+        source = asyncio.run(runner.run("checkoutservice 排查", incident=self.incident))
+        with self.assertRaisesRegex(DraftValidationError, "executable shell commands"):
+            asyncio.run(self.generator().run(source))
+
     def test_disabled_and_empty_pack_do_not_call_cloud_or_fabricate_draft(self):
         empty = asyncio.run(self.runner.run("checkoutservice", incident=self.incident,
             overrides={"sources": {"doc": False, "case": False, "metric": False}}))

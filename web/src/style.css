@@ -645,6 +645,43 @@ summary:hover {
 .result-notes summary {
   font-size: 11px;
 }
+.danger-button {
+  color: #a34940;
+  border-color: #ead7d4;
+}
+.danger-button:hover:not(:disabled) {
+  background: #fdf5f4;
+  border-color: #d8b7b2;
+}
+.lifecycle-hint {
+  margin: -10px 0 16px;
+}
+.troubleshooting {
+  margin-bottom: 20px;
+}
+.troubleshooting-step {
+  margin-top: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.troubleshooting-step:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.troubleshooting-step h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 550;
+  margin-bottom: 10px;
+}
+.troubleshooting-step > p {
+  font-size: 13px;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .evidence-card {
   padding: 23px 0;
   border-bottom: 1px solid #efefef;

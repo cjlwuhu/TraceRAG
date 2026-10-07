@@ -1,10 +1,37 @@
 <script setup>
-import { ref } from "vue";
-const props = defineProps(["api", "knowledge", "eventId", "incident"]);
+import { computed, ref, watch } from "vue";
+const props = defineProps([
+  "api",
+  "knowledge",
+  "eventId",
+  "incident",
+  "pendingJobs",
+  "parentBusy",
+]);
 const emit = defineEmits(["refresh", "notice", "error"]);
 const busy = ref(false),
   attachment = ref(null),
   agreed = ref(false);
+const cases = ref([]),
+  casesVersion = ref("");
+const deletionBlocked = computed(
+  () => busy.value || props.parentBusy || props.pendingJobs > 0,
+);
+let caseRequest = 0;
+const time = (value) =>
+  value ? value.replace("T", " ").replace(/Z$/, " UTC") : "未登记";
+async function loadCases() {
+  const request = ++caseRequest;
+  const inventory = await props.api("/knowledge/cases");
+  if (request !== caseRequest) return;
+  cases.value = inventory.items;
+  casesVersion.value = inventory.knowledge_version;
+}
+watch(
+  () => props.knowledge?.version,
+  () => perform(loadCases),
+  { immediate: true },
+);
 const form = ref({
   title: "",
   symptoms: "",
@@ -72,9 +99,32 @@ async function saveCase() {
       outcome_evidence: value.evidence,
       attestation: agreed.value,
     });
-    emit("notice", "已保存人工审核记录并发布新的知识库版本。");
     agreed.value = false;
+    await loadCases();
     emit("refresh");
+    emit("notice", "已保存人工审核记录并发布新的知识库版本。");
+  });
+}
+async function deleteCase(item) {
+  if (deletionBlocked.value) return;
+  if (
+    !window.confirm(
+      `从当前知识库删除案例“${item.title}”？此操作不可撤回，将发布不含此案例的新版本。历史知识版本和既有查询快照会保留，以便审计与复现实验；其中仍可包含此案例。`,
+    )
+  )
+    return;
+  await perform(async () => {
+    const deleted = await props.api(
+      `/knowledge/cases/${encodeURIComponent(item.case_id)}`,
+      undefined,
+      "DELETE",
+    );
+    await loadCases();
+    emit("refresh");
+    emit(
+      "notice",
+      `已从当前知识库删除案例，释放 ${Number(deleted.reclaimed_bytes || 0).toLocaleString()} 字节。历史版本与查询快照保留。`,
+    );
   });
 }
 </script>
@@ -93,7 +143,7 @@ async function saveCase() {
       </div>
       <div>
         <strong>{{ knowledge?.counts?.case || 0 }}</strong
-        ><span>已确认案例</span>
+        ><span>已确认案例（人工登记）</span>
       </div>
       <div>
         <strong>{{ knowledge?.systems?.length || 0 }}</strong
@@ -106,6 +156,50 @@ async function saveCase() {
       <dt>适用系统</dt>
       <dd>{{ knowledge?.systems?.join(" · ") || "—" }}</dd>
     </dl>
+    <section class="case-inventory">
+      <div class="section-title">
+        <h2>已确认案例（人工登记）</h2>
+        <span>当前版本 · {{ cases.length }} 条</span>
+      </div>
+      <p class="hint">
+        核验人和核验结果由登记者自报，系统未进行外部身份或事实核验。教学、测试与占位记录不能计为真实研究案例。
+      </p>
+      <p v-if="pendingJobs" class="hint">
+        任务排队或运行时暂停删除；完成后可继续。
+      </p>
+      <p v-if="busy && !casesVersion" class="hint">正在读取当前案例…</p>
+      <p v-else-if="!cases.length" class="small-empty">
+        当前知识版本没有已登记案例。
+      </p>
+      <article v-for="item in cases" :key="item.case_id" class="case-card">
+        <div class="case-heading">
+          <div>
+            <h3>{{ item.title }}</h3>
+            <code>{{ item.case_id }}</code>
+          </div>
+          <button
+            class="button danger-button"
+            @click="deleteCase(item)"
+            :disabled="deletionBlocked"
+          >
+            删除案例
+          </button>
+        </div>
+        <dl class="case-meta">
+          <dt>系统</dt>
+          <dd>{{ item.system || "未登记" }}</dd>
+          <dt>来源事件</dt>
+          <dd>{{ item.source_incident_id || "未登记" }}</dd>
+          <dt>核验人（自报）</dt>
+          <dd>{{ item.verified_by || "未登记" }}</dd>
+          <dt>核验时间</dt>
+          <dd>{{ time(item.verified_at) }}</dd>
+          <dt>身份说明</dt>
+          <dd>{{ item.identity_assurance || "未提供外部身份核验依据" }}</dd>
+        </dl>
+        <div class="case-content">{{ item.content }}</div>
+      </article>
+    </section>
     <div class="research-sections">
       <section>
         <h2>事件证据</h2>
@@ -252,6 +346,55 @@ async function saveCase() {
   border-top: 1px solid #e3e7e4;
   padding-top: 24px;
 }
+.case-inventory {
+  padding: 24px 0;
+  border-top: 1px solid #e3e7e4;
+}
+.case-inventory h2 {
+  font-size: 16px;
+  font-weight: 550;
+}
+.case-card {
+  padding: 22px 0;
+  border-bottom: 1px solid #e3e7e4;
+}
+.case-card:last-child {
+  border-bottom: 0;
+}
+.case-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.case-heading > div {
+  min-width: 0;
+}
+.case-heading h3 {
+  font-size: 14px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+  margin-bottom: 5px;
+}
+.case-heading button {
+  flex-shrink: 0;
+}
+.case-meta {
+  grid-template-columns: 100px minmax(0, 1fr);
+  font-size: 11px;
+  gap: 7px 12px;
+  margin: 15px 0;
+}
+.case-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.85;
+  color: #555e58;
+  padding: 15px;
+  background: #f8f9f8;
+  border-radius: 8px;
+}
 .research-sections h2 {
   font-size: 16px;
   font-weight: 550;
@@ -303,6 +446,9 @@ async function saveCase() {
   }
   .inventory {
     gap: 35px;
+  }
+  .inventory div {
+    min-width: 0;
   }
   .intro h1 {
     font-size: 23px;

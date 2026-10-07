@@ -11,6 +11,7 @@ import uuid
 
 from easyrag.adapters.knowledge_corpus import load_manifest, write_manifest
 from easyrag.console.knowledge_registry import LOCK, digest
+from easyrag.console.lifecycle import serialized
 from easyrag.console.store import locate, now, read_json, write_json
 from easyrag.domain.knowledge import HistoricalCase, KnowledgeDocument
 from easyrag.retrieval.operations import eligible
@@ -34,6 +35,7 @@ def asset_path(root, sha):
     return path
 
 
+@serialized
 def observations(catalog, event_id):
     catalog.event(event_id)
     docs = []
@@ -44,6 +46,7 @@ def observations(catalog, event_id):
     return docs
 
 
+@serialized
 def attach(catalog, event_id, value):
     if set(value) != {"documents", "assets"}: raise ValueError("expected documents and assets")
     if not isinstance(value["documents"], list) or not 1 <= len(value["documents"]) <= 100:
@@ -80,6 +83,7 @@ def attach(catalog, event_id, value):
         return receipt
 
 
+@serialized
 def admit_case(catalog, submission):
     if set(submission) != {"case", "outcome", "outcome_evidence", "attestation"}:
         raise ValueError("case, outcome, outcome_evidence and attestation are required")
@@ -112,6 +116,7 @@ def admit_case(catalog, submission):
         return {"review_id": folder.name, "case_id": case.case_id, "knowledge_version": result["version"]}
 
 
+@serialized
 def annotate(catalog, generation_id, value):
     folder = locate(catalog.orders, generation_id, "gen")
     pack = read_json(folder / "evidence-pack.json")
