@@ -343,7 +343,6 @@ class ConsoleTests(unittest.TestCase):
         public = self.client.get("/api/settings").json()
         return {**{k: v for k, v in public.items() if k not in {"credentials", "storage"}}, **changes}
 
-    @unittest.skipUnless(os.name == "nt", "DPAPI requires Windows")
     def test_settings_encrypted_persistent_write_only_and_clear_blocks_environment(self):
         key = "sk-TEST_ONLY_QWEN_SECRET_123456"
         body = self.preferences(cloud_enabled=True, qwen_key=key, glm_key="TEST_ONLY_GLM_SECRET_123456",
@@ -429,7 +428,6 @@ class ConsoleTests(unittest.TestCase):
             self.assertEqual(status, problem["http_status"])
             self.assertNotIn("PRIVATE_PROVIDER_BODY", json.dumps(problem))
 
-    @unittest.skipUnless(os.name == "nt", "DPAPI requires Windows")
     def test_console_uses_saved_glm_credential_for_grounded_generation(self):
         body = self.body()
         offline = self.completed(self.post("/api/runs", body))

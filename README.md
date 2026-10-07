@@ -141,7 +141,7 @@ $traceManifest = Join-Path $traceBuild.directory 'corpus\manifest.jsonl'
 
 ## 可选云能力
 
-默认离线。在控制台“设置”中可以配置 Qwen / GLM 凭据与本地代理；密钥使用当前 Windows 用户绑定的 DPAPI 密文存储。Cloud 总开关开放服务能力，具体任务仍需选择 Dense / Hybrid、云重排或云生成。保存设置、打开网页不会调用模型；连接测试和云任务可能计费。
+默认离线。在控制台“设置”中可以配置 Qwen / GLM 凭据与服务端本地代理；Windows 服务使用当前用户绑定的 DPAPI，Linux 服务使用私有主密钥和 AES-GCM 加密持久化。页面显示服务端的存储方式，只返回配置状态。Cloud 总开关开放服务能力，具体任务仍需选择 Dense / Hybrid、云重排或云生成。保存设置、打开网页不会调用模型；连接测试和云任务可能计费。
 
 Qwen 支持 `text-embedding-v4`、`gte-rerank-v2` 与生成模型，GLM 用于生成。密钥不写入 YAML、Git、工单或浏览器存储。命令行沿用服务端配置及环境变量；新流水线的离线默认行为不依赖控制台保存设置。已有云接口可用性记录不代表独立诊断效果验证。详见 第 6 阶段 与 8b 设置说明。
 

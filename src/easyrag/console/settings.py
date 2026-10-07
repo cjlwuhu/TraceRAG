@@ -1,8 +1,5 @@
-"""Local service preferences. Credentials are sealed with current-user Windows DPAPI."""
+"""Service preferences and platform-specific, write-only encrypted credentials."""
 
-import base64
-import ctypes
-from ctypes import wintypes
 import os
 import re
 import threading
@@ -13,7 +10,8 @@ import httpx
 from pydantic import SecretStr, StrictBool, conint, constr, root_validator, validator
 
 from easyrag.console.diagnostics import ConsoleProblem
-from easyrag.console.store import read_json, write_json
+from easyrag.console.store import read_json
+from easyrag.console.credential_store import CredentialStore, PREFIX, protect
 from easyrag.domain.experiment import StrictModel
 from easyrag.retrieval.cloud_models import CloudModelError, DashScopeModels, read_api_key
 from easyrag.retrieval.vector_cache import CachedEmbeddings
@@ -65,30 +63,6 @@ class SettingsRequest(Preferences):
         return values
 
 
-def protect(value, *, decrypt=False):
-    if os.name != "nt":
-        raise ConsoleProblem("credential_storage", "当前平台不支持 Windows 密钥存储", "请使用服务端环境变量配置密钥。")
-    class Blob(ctypes.Structure):
-        _fields_ = [("size", wintypes.DWORD), ("data", ctypes.POINTER(ctypes.c_ubyte))]
-    crypt = ctypes.WinDLL("crypt32", use_last_error=True)
-    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-    fn = crypt.CryptUnprotectData if decrypt else crypt.CryptProtectData
-    fn.argtypes = [ctypes.POINTER(Blob), ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
-                   ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(Blob)]
-    fn.restype = wintypes.BOOL
-    kernel.LocalFree.argtypes = [ctypes.c_void_p]
-    kernel.LocalFree.restype = ctypes.c_void_p
-    buffer = ctypes.create_string_buffer(value)
-    source = Blob(len(value), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_ubyte)))
-    result = Blob()
-    if not fn(ctypes.byref(source), None, None, None, None, 1, ctypes.byref(result)):
-        raise ConsoleProblem("credential_storage", "密钥加密或解密失败", "请使用保存密钥的 Windows 用户，或重新输入密钥。")
-    try:
-        return ctypes.string_at(result.data, result.size)
-    finally:
-        kernel.LocalFree(result.data)
-
-
 class GLMChat:
     api_host = "https://open.bigmodel.cn"
     provider = "glm"
@@ -121,6 +95,7 @@ class GLMChat:
 class ServiceSettings:
     def __init__(self, state, server_config, *, allow_cloud=False):
         self.path, self.state = state / "service-settings.json", state
+        self.vault = CredentialStore(state)
         self.server_config, self.lock = server_config, threading.RLock()
         # Keep legacy key-file/proxy configuration as defaults. No key is read on page load.
         cloud = server_config.get("cloud_services", {})
@@ -150,7 +125,7 @@ class ServiceSettings:
             document = self._document()
             return {**Preferences.parse_obj(document["preferences"]).dict(),
                     "credentials": {p: self._status(p, document) for p in ("qwen", "glm")},
-                    "storage": "windows_dpapi" if os.name == "nt" else "environment_only"}
+                    "storage": self.vault.storage}
 
     def save(self, request):
         with self.lock:
@@ -161,19 +136,18 @@ class ServiceSettings:
                 if getattr(request, "clear_" + provider + "_key"):
                     credentials[provider] = None  # Explicitly suppress legacy environment fallback.
                 elif secret:
-                    credentials[provider] = base64.b64encode(protect(secret.get_secret_value().encode())).decode("ascii")
+                    allow_create = not any(isinstance(value, str) and value.startswith(PREFIX)
+                                           for value in credentials.values())
+                    credentials[provider] = self.vault.seal(provider, secret.get_secret_value(), allow_create=allow_create)
             prefs = {name: getattr(request, name) for name in Preferences.__fields__}
-            write_json(self.path, {"preferences": prefs, "credentials": credentials}, replace=True)
+            self.vault.write_settings(self.path, {"preferences": prefs, "credentials": credentials})
             return self.public()
 
     def _key(self, provider, document):
         if provider in document["credentials"]:
             sealed = document["credentials"][provider]
             if sealed:
-                try:
-                    return protect(base64.b64decode(sealed, validate=True), decrypt=True).decode()
-                except (ValueError, UnicodeError):
-                    raise ConsoleProblem("credential_storage", "无法读取已保存的密钥", "在设置中重新保存密钥。", service=provider) from None
+                return self.vault.unseal(provider, sealed)
         elif provider == "qwen":
             try:
                 location = self.server_config.get("cloud_services", {}).get("key_file")

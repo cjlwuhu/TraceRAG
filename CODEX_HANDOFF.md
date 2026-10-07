@@ -54,6 +54,16 @@
 
 本轮隔离后端日志、源码清单、本地覆盖前备份和 `https-lifecycle-smoke.json` 回执保存在仓库外 `D:\Project\TraceRAG-release-20261007-lifecycle`；服务器后端日志为 `/tmp/tracerag-lifecycle-linux-tests.log`。继续开发前阅读 `src/easyrag/console/lifecycle.py`、`tests/test_lifecycle.py`、`web/tests/lifecycle.spec.js` 和更新后的 UI 教程，避免破坏上述删除与证据保留约定。
 
+### 2026-10-07 服务器 UI 密钥保存修复
+
+域名后的后端是 Linux，原 `ServiceSettings.save` 在所有平台调用 Windows DPAPI，导致 UI 输入 Key 后返回“当前平台不支持 Windows 密钥存储”。已在服务器临时目录复现原错误并修复：Windows 继续读写原 DPAPI 格式；Linux 使用 `cryptography` AES-256-GCM、随机 nonce、绑定服务商的附加认证数据和权限 600 的主密钥文件，设置也以权限 600 原子写入。新 `credential_store.py` 只处理服务端密钥，API 仍只返回状态，运行任务不保存凭据。服务器主密钥和设置属于持久状态，不进入 Git、源码包或本地副本同步。
+
+主密钥不存在/损坏、权限过宽、符号链接/硬链接异常及密文篡改均拒绝读取；有旧加密凭据时不会静默创建新主密钥。清除继续封锁环境 fallback，留空保留原值，替换一个服务商不更改另一服务商。主密钥和加密设置需要一起私下备份；详见 `DEPLOYMENT.md`。UI 根据服务端 `storage` 展示“Windows 用户加密存储”或“服务器加密存储”，不能按浏览器操作系统推断存储位置。
+
+本轮验证：Windows 后端 169 项，164 通过、5 项跳过（3 项符号链接权限、2 项 POSIX 权限检查）；Linux 以实际 `tracerag` 服务用户运行 169 项，168 通过、1 项 Windows junction 跳过。Linux 已实际验证两种 UI 凭据保存、重新读取、Cloud runtime 取得解密值、权限 600 和链接边界；原先两项 DPAPI-only 的保存/GLM mocked API 回归现在在 Linux 也通过。Edge 全流程 15/15（含真实 CSV 与新保存/刷新/清除测试），生产构建通过；独立 Windows 旧 DPAPI 兼容及加密回归 5/5。Linux 主环境 `pip check` 通过。测试全部使用合成 Key 或 mocked 厂商接口，没有付费调用，也未代填用户的真实 API Key。
+
+本轮候选目录为 `/opt/tracerag/releases/20261007-credentials`，使用原 `/var/lib/tracerag` 持久数据、登录凭据和独立 RCA。日志及源码清单保存在仓库外 `D:\Project\TraceRAG-release-20261007-credentials`，服务器日志为 `/tmp/tracerag-credentials-linux-tests.log`；最终部署/提交身份仍以 `/opt/tracerag/release.json` 和 `git log` 为准。接手维护时不能恢复旧 `environment_only` 保存分支，也不能将密钥明文写入公开设置/工单/日志。研究阶段目标与人工材料计数不变。
+
 ## 2. 申请书依据与时间冲突
 
 本次核对原件：`C:\Users\DELL\Desktop\多模态RAG网络运维项目申请书.docx`。

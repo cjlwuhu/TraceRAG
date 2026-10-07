@@ -46,4 +46,6 @@ sudo systemctl reload nginx
 
 证书由 Certbot webroot 管理，挑战目录 `/var/www/tracerag-acme`；保留 `certbot.timer` 与续期后 Nginx reload hook。更新前备份当前链接和状态，回滚时恢复上一源码链接并重启单进程服务；不要用旧状态覆盖新用户数据。
 
-Linux 控制台显示 `environment_only` 密钥存储；通过 `/etc/tracerag/environment` 设置 `DASHSCOPE_API_KEY`、`GLM_API_KEY`/`ZHIPU_API_KEY`，重启服务后再显式启用 Cloud。默认离线；本次不迁移本机 DPAPI 密钥，也不自动调用计费模型。
+Linux 控制台显示 `linux_aesgcm`（服务器加密存储），可直接在“设置 → 模型服务”保存 Qwen / GLM Key。主密钥 `/var/lib/tracerag/outputs/console/credential-store.key` 和加密设置 `service-settings.json` 属于服务用户，权限为 600；保存在持久目录，源码更新和服务重启不删除它们。备份已保存凭据时必须同时私下保全主密钥与加密设置；主密钥不能进 Git 或公开发布包，丢失后不能从密文恢复。Windows DPAPI 文件不可直接迁到 Linux。
+
+也可通过 `/etc/tracerag/environment` 设置 `DASHSCOPE_API_KEY`、`GLM_API_KEY`/`ZHIPU_API_KEY`，重启服务后生效。UI 保存值优先；UI “清除”明确停用对应凭据并阻止环境变量自动恢复。启用 Cloud 和具体云模块后才调用模型；保存、读取、清除设置均不发起模型请求。默认离线，本次不迁移本机 DPAPI 密钥，也不自动调用计费模型。

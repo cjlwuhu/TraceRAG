@@ -19,7 +19,16 @@ const fields = [
 ];
 const form = ref(Object.fromEntries(fields.map((k) => [k, props.initial[k]])));
 const credentials = ref(props.initial.credentials),
+  storage = ref(props.initial.storage),
   baseline = ref(JSON.stringify(form.value));
+const storageDescription = computed(
+  () =>
+    ({
+      windows_dpapi: "Windows 用户加密存储",
+      linux_aesgcm: "服务器加密存储",
+      environment_only: "由服务端环境变量配置密钥",
+    })[storage.value] || "由服务端管理密钥配置",
+);
 const qwenKey = ref(""),
   glmKey = ref(""),
   clearQwen = ref(false),
@@ -37,6 +46,7 @@ const status = (provider) =>
     saved: "已加密保存",
     environment: "来自服务端环境",
     missing: "未配置",
+    unset: "未配置",
     disabled: "已清除",
   })[credentials.value[provider]];
 async function save() {
@@ -52,6 +62,7 @@ async function save() {
       clear_glm_key: clearGlm.value,
     });
     credentials.value = value.credentials;
+    storage.value = value.storage;
     qwenKey.value = "";
     glmKey.value = "";
     clearQwen.value = false;
@@ -221,7 +232,8 @@ onMounted(async () => {
             </div>
           </section>
           <p class="hint">
-            密钥仅在本机加密保存。先保存再测试；连接测试会调用模型。
+            {{ storageDescription }}。密钥由运行 TraceRAG
+            的服务端保存，不会返回页面。 先保存再测试；连接测试会调用模型。
           </p>
         </template>
         <template v-if="tab === 'network'">
@@ -252,7 +264,7 @@ onMounted(async () => {
       <Icon name="check" :size="16" />{{ message }}
     </div>
     <footer class="settings-footer">
-      <span>{{ dirty ? "有未保存的更改" : "已与本地服务同步" }}</span
+      <span>{{ dirty ? "有未保存的更改" : "已与服务同步" }}</span
       ><button
         class="button primary"
         type="submit"
